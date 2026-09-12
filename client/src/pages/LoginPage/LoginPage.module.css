@@ -1,0 +1,73 @@
+.loginContainer {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(135deg, #1677FF 0%, #0052D9 50%, #003EB3 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Decorative background blobs */
+.loginContainer::before {
+  content: '';
+  position: absolute;
+  top: -30%;
+  right: -10%;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.loginContainer::after {
+  content: '';
+  position: absolute;
+  bottom: -20%;
+  left: -5%;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.loginCard {
+  width: 420px;
+  border-radius: 16px !important;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.15) !important;
+  position: relative;
+  z-index: 1;
+  backdrop-filter: blur(10px);
+}
+
+.loginCard :global(.ant-card-body) {
+  padding: 40px 36px !important;
+}
+
+.logo {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.logoIcon {
+  font-size: 42px;
+  margin-bottom: 4px;
+}
+
+.appTitle {
+  text-align: center;
+  margin-bottom: 4px !important;
+  color: #1677FF !important;
+}
+
+.subtitle {
+  display: block;
+  text-align: center;
+  margin-bottom: 28px;
+  color: var(--text-tertiary, #8B949E);
+}
+
+.footer {
+  text-align: center;
+  margin-top: 8px;
+}

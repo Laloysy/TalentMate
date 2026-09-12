@@ -1,0 +1,28 @@
+{
+  "name": "voice-calendar-server",
+  "version": "1.0.0",
+  "description": "Voice Calendar Assistant - Backend API Server",
+  "main": "app.js",
+  "scripts": {
+    "dev": "node --watch app.js",
+    "start": "node app.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "mysql2": "^3.11.0",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.9.14",
+    "tencentcloud-sdk-nodejs": "^4.0.900",
+    "openai": "^4.67.0",
+    "chrono-node": "^2.7.7"
+  }
+}

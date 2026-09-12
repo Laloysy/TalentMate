@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  db:
+    image: mysql:8.0
+    container_name: voice-calendar-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${DB_NAME:-voice_calendar}
+      MYSQL_CHARSET: utf8mb4
+      MYSQL_COLLATION: utf8mb4_unicode_ci
+    ports:
+      - '${DB_PORT:-3306}:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./server/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
+      timeout: 20s
+      retries: 10
+
+  # Backend API Server
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: voice-calendar-server
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      NODE_ENV: production
+    ports:
+      - '${PORT:-3001}:3001'
+
+volumes:
+  mysql_data:

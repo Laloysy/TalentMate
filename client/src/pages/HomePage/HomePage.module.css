@@ -1,0 +1,155 @@
+.pageLayout {
+  min-height: 100vh;
+  background: var(--bg-page, #F5F7FA);
+}
+
+/* ---------- Header ---------- */
+.header {
+  background: linear-gradient(135deg, #1677FF 0%, #0052D9 100%) !important;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 24px !important;
+  height: 56px;
+  line-height: 56px;
+  box-shadow: 0 2px 8px rgba(22, 119, 255, 0.25);
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.headerLogo {
+  font-size: 24px;
+}
+
+.headerTitle {
+  color: #fff !important;
+  margin: 0 !important;
+  font-size: 18px !important;
+  font-weight: 600 !important;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.headerUser {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+}
+
+.headerLogout {
+  color: rgba(255, 255, 255, 0.85) !important;
+  font-size: 13px;
+}
+
+.headerLogout:hover {
+  color: #fff !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+}
+
+/* ---------- Content ---------- */
+.content {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.calendarCard {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+}
+
+.calendarCard :global(.ant-picker-calendar) {
+  border-radius: 8px;
+}
+
+.calendarCard :global(.ant-picker-cell-in-view.ant-picker-cell-selected .ant-picker-cell-inner) {
+  background: #1677FF !important;
+  border-radius: 8px;
+}
+
+.calendarCard :global(.ant-picker-cell-in-view.ant-picker-cell-today .ant-picker-cell-inner::before) {
+  border-color: #1677FF !important;
+  border-radius: 8px;
+}
+
+/* ---------- Event cell ---------- */
+.eventCell {
+  list-style: none;
+  padding: 0;
+  margin: 2px 0 0;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.eventItem {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 4px;
+  margin-bottom: 1px;
+  border-radius: 3px;
+  background: #E6F4FF;
+  color: #1677FF;
+}
+
+.eventDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #1677FF;
+  margin-right: 4px;
+}
+
+.eventMore {
+  color: #1677FF;
+  font-size: 10px;
+  padding-left: 4px;
+}
+
+/* ---------- Drawer ---------- */
+.drawerEmpty {
+  text-align: center;
+  padding: 64px 0;
+  color: #8B949E;
+}
+
+.drawerEmptyIcon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.eventCard {
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  background: #F8FAFD;
+  border-radius: 10px;
+  border: 1px solid #EBEDF0;
+  transition: all 0.2s ease;
+}
+
+.eventCard:hover {
+  border-color: #C8D6FF;
+  box-shadow: 0 2px 8px rgba(22, 119, 255, 0.06);
+}
+
+.eventTitle {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1F2328;
+}
+
+.eventMeta {
+  font-size: 12px;
+  color: #8B949E;
+  margin-top: 4px;
+}

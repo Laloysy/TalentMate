@@ -1,0 +1,76 @@
+.registerContainer {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(135deg, #1677FF 0%, #0052D9 50%, #003EB3 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.registerContainer::before {
+  content: '';
+  position: absolute;
+  bottom: -25%;
+  right: -15%;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.registerContainer::after {
+  content: '';
+  position: absolute;
+  top: -20%;
+  left: -8%;
+  width: 350px;
+  height: 350px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.registerCard {
+  width: 440px;
+  border-radius: 16px !important;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.15) !important;
+  position: relative;
+  z-index: 1;
+}
+
+.registerCard :global(.ant-card-body) {
+  padding: 36px 36px 28px !important;
+}
+
+.logo {
+  text-align: center;
+  margin-bottom: 6px;
+}
+
+.logoIcon {
+  font-size: 38px;
+  margin-bottom: 2px;
+}
+
+.appTitle {
+  text-align: center;
+  margin-bottom: 2px !important;
+  color: #1677FF !important;
+}
+
+.subtitle {
+  display: block;
+  text-align: center;
+  margin-bottom: 22px;
+  color: var(--text-tertiary, #8B949E);
+}
+
+.privacy {
+  font-size: 12px;
+  color: var(--text-tertiary, #8B949E);
+  margin-bottom: 4px;
+}
+
+.footer {
+  text-align: center;
+}

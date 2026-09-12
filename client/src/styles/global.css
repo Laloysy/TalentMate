@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom base styles — complements Tailwind */
+@layer base {
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+      'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    color: #1E293B;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a {
+    color: #1677FF;
+  }
+}
+
+/* ============================================
+   Ant Design Calendar — 原生 table 均分高度方案
+   仅用 height:100% 链条 + flex 容器，不动 tr/td display
+   ============================================ */
+
+/* ① 外层链条 height:100% + flex column */
+.ant-picker-calendar-full {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.ant-picker-calendar-full .ant-picker-panel,
+.ant-picker-calendar-full .ant-picker-date-panel {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 !important;
+}
+
+/* ② body 占满剩余空间 */
+.ant-picker-calendar-full .ant-picker-body {
+  flex: 1 !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* ③ 原生 table 高度 100%，由浏览器 table-layout 均分 */
+.ant-picker-calendar-full .ant-picker-content {
+  height: 100% !important;
+}
+
+/* ④ 不碰 tr/td 的 display，保留原生 table 语义 */
+
+/* ⑤ 单元格 — 最小高度 + flex 布局，内容始终可见 */
+.ant-picker-calendar-full .ant-picker-cell-inner {
+  height: 100% !important;
+  min-height: 60px !important;
+  border-radius: 0 !important;
+  padding: 4px 6px !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* 网格线 */
+.ant-picker-calendar-full .ant-picker-cell {
+  border: 1px solid #f1f5f9 !important;
+  padding: 0 !important;
+  vertical-align: top;
+}
+
+/* 悬停和选中 */
+.ant-picker-calendar-full .ant-picker-cell-inner:hover,
+.ant-picker-cell-in-view.ant-picker-cell-selected .ant-picker-cell-inner {
+  background: rgba(22, 119, 255, 0.06) !important;
+}
+
+/* 表头 */
+.ant-picker-calendar-full thead th {
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  color: #94A3B8 !important;
+  padding: 8px 0 !important;
+  border: 1px solid #f1f5f9 !important;
+  text-align: center !important;
+}
+
+/* Today + 日期数字 */
+.ant-picker-calendar-full .ant-picker-cell-today .ant-picker-cell-inner::before {
+  border-color: #EF4444 !important;
+}
+
+.ant-picker-calendar-full .ant-picker-calendar-date-value {
+  font-size: 12px !important;
+  text-align: left !important;
+  line-height: 1;
+}
+
+.ant-picker-calendar-full .ant-picker-cell-today .ant-picker-calendar-date-value {
+  color: #EF4444 !important;
+  font-weight: 600;
+}
+
+/* 隐藏自带表头 */
+.ant-picker-calendar-full .ant-picker-calendar-header {
+  display: none !important;
+}
+
+/* Slim scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 2px; }
+

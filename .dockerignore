@@ -1,0 +1,36 @@
+.git
+.github
+
+# Dependencies
+node_modules
+client/node_modules
+server/node_modules
+
+# Build outputs
+client/dist
+server/public
+dist
+build
+
+# Local env and logs
+.env
+.env.*
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Runtime uploads
+uploads
+server/uploads
+
+# Archives and generated packages
+*.tar
+*.tar.gz
+*.zip
+voice-calendar.tar.gz
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.vscode
+.idea
