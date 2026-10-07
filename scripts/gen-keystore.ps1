@@ -1,4 +1,4 @@
-# Generate a release signing keystore and write the local signing config.
+﻿# Generate a release signing keystore and write the local signing config.
 #
 # Notes:
 #  - The keystore and its passwords are NEVER committed (see .gitignore),

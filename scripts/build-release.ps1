@@ -1,4 +1,4 @@
-# Build a signed release APK (and optionally an AAB for Play).
+﻿# Build a signed release APK (and optionally an AAB for Play).
 #
 # Prerequisites:
 #   1. Run scripts/gen-keystore.ps1 once to create client/android/release.keystore

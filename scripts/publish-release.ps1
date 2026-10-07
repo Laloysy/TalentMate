@@ -1,4 +1,4 @@
-# Publish a GitHub Release with the signed APK and the notes.
+﻿# Publish a GitHub Release with the signed APK and the notes.
 #
 # Requires a GitHub token with `repo` scope (the repository is private).
 # Pass it via the GITHUB_TOKEN environment variable, or pass -Token.
@@ -47,11 +47,14 @@ $api = "https://api.github.com/repos/$Repo"
 function Invoke-Gh {
     param([string]$Method, [string]$Uri, $Body, [string]$ContentType = 'application/json')
     $p = @{ Method = $Method; Uri = $Uri; Headers = $headers }
-    if ($Body) {
-        if ($ContentType -eq 'application/json') {
-            $p.Body = ($Body | ConvertTo-Json -Depth 6 -Compress)
-            $p.ContentType = 'application/json'
-        }
+    if ($Body -and $ContentType -eq 'application/json') {
+        $json = $Body | ConvertTo-Json -Depth 6 -Compress
+        # Windows PowerShell 5.1's Invoke-RestMethod encodes a string body as
+        # ISO-8859-1/ASCII, which corrupts non-ASCII text (the release notes are
+        # Chinese) and makes GitHub reply "Problems parsing JSON".
+        # Send explicit UTF-8 bytes instead.
+        $p.Body = [System.Text.Encoding]::UTF8.GetBytes($json)
+        $p.ContentType = 'application/json; charset=utf-8'
     }
     return Invoke-RestMethod @p
 }
@@ -82,7 +85,16 @@ if (-not $existingRef) {
 }
 
 # --- 3. create (or reuse) the release --------------------------------------
-$notes = Get-Content $NotesFile -Raw
+# Read as explicit UTF-8. On Windows PowerShell 5.1, `Get-Content -Raw` decodes
+# using the ANSI codepage, which turns the Chinese notes into mojibake and makes
+# GitHub reject the request ("Problems parsing JSON" / invalid property value).
+$notes = [System.IO.File]::ReadAllText($NotesFile, [System.Text.Encoding]::UTF8)
+if ($notes.Length -lt 100) { throw "Release notes look too short, refusing to publish: $NotesFile" }
+# Guard against silently publishing mojibake: the notes are expected to contain CJK.
+if ($notes -notmatch '[\u4e00-\u9fff]') {
+    throw 'Release notes contain no CJK characters; the file was probably decoded with the wrong encoding.'
+}
+Write-Host "  notes: $($notes.Length) chars, UTF-8 OK" -ForegroundColor DarkGray
 $name = "TalentMate 伴贤 $Version"
 
 $release = $null
