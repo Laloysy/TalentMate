@@ -36,12 +36,71 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/events - Create a new event manually
+// 事件字段长度上限（对齐 db/init.sql 的列定义）
+// 超出时会触发 MySQL 的 "Data too long for column"，落到 catch 里变成 500。
+// 这里提前校验，返回明确的 400，避免把数据库错误当成服务器故障暴露出去。
+const EVENT_LIMITS = {
+  title: 200,        // events.title VARCHAR(200)
+  event_type: 40,    // events.event_type VARCHAR(40)
+  mail_subject: 200, // events.mail_subject VARCHAR(200)
+  mail_status: 30,   // events.mail_status VARCHAR(30)
+};
+
+/**
+ * 校验日程字段。
+ * @returns {{valid:true} | {valid:false, message:string}}
+ */
+function validateEventFields({ title, startTime, endTime, eventType, mailSubject, mailStatus, reminder }) {
+  if (!String(title).trim()) return { valid: false, message: '标题不能为空' };
+  if (String(title).length > EVENT_LIMITS.title) {
+    return { valid: false, message: `标题最长 ${EVENT_LIMITS.title} 个字符` };
+  }
+
+  // 时间格式：YYYY-MM-DD HH:mm(:ss)
+  const timeRe = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/;
+  if (!timeRe.test(String(startTime))) {
+    return { valid: false, message: '开始时间格式应为 YYYY-MM-DD HH:mm' };
+  }
+  if (endTime && !timeRe.test(String(endTime))) {
+    return { valid: false, message: '结束时间格式应为 YYYY-MM-DD HH:mm' };
+  }
+  if (endTime && new Date(String(endTime).replace(' ', 'T')) < new Date(String(startTime).replace(' ', 'T'))) {
+    return { valid: false, message: '结束时间不能早于开始时间' };
+  }
+
+  if (eventType && String(eventType).length > EVENT_LIMITS.event_type) {
+    return { valid: false, message: `关怀类型最长 ${EVENT_LIMITS.event_type} 个字符` };
+  }
+  if (mailSubject && String(mailSubject).length > EVENT_LIMITS.mail_subject) {
+    return { valid: false, message: `邮件主题最长 ${EVENT_LIMITS.mail_subject} 个字符` };
+  }
+  if (mailStatus && String(mailStatus).length > EVENT_LIMITS.mail_status) {
+    return { valid: false, message: `邮件状态最长 ${EVENT_LIMITS.mail_status} 个字符` };
+  }
+
+  if (reminder !== undefined && reminder !== null && reminder !== '') {
+    const n = Number(reminder);
+    if (!Number.isInteger(n) || n < 0 || n > 1440) {
+      return { valid: false, message: '提前提醒应为 0–1440 之间的整数（分钟）' };
+    }
+  }
+
+  return { valid: true };
+}
+
 router.post('/', async (req, res) => {
   try {
     const { title, startTime, endTime, reminder, contactId, eventType, mailStatus, mailSubject, mailBodyOverride } = req.body;
 
     if (!title || !startTime) {
       return res.status(400).json({ success: false, message: '标题和开始时间为必填项' });
+    }
+
+    const validation = validateEventFields({
+      title, startTime, endTime, eventType, mailSubject, mailStatus, reminder,
+    });
+    if (!validation.valid) {
+      return res.status(400).json({ success: false, message: validation.message });
     }
 
     const [result] = await pool.query(
@@ -110,6 +169,21 @@ router.put('/:id', async (req, res) => {
     const newMailStatus = mailStatus !== undefined ? mailStatus : ev.mail_status;
     const newMailSubject = mailSubject !== undefined ? mailSubject : ev.mail_subject;
     const newMailBodyOverride = mailBodyOverride !== undefined ? mailBodyOverride : ev.mail_body_override;
+
+    // 与创建接口同样的字段校验：超长/格式错误应返回 400，
+    // 而不是让 MySQL 的 "Data too long" 冒泡成 500
+    const validation = validateEventFields({
+      title: newTitle,
+      startTime: newStart,
+      endTime: newEnd,
+      eventType: newEventType,
+      mailSubject: newMailSubject,
+      mailStatus: newMailStatus,
+      reminder: newReminder,
+    });
+    if (!validation.valid) {
+      return res.status(400).json({ success: false, message: validation.message });
+    }
 
     // Generate intelligent feedback message (same logic as voice.js)
     const titleChanged = title !== undefined && title !== ev.title;

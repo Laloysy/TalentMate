@@ -75,7 +75,15 @@ function ChatPanel({ messages, onVoiceResult, username, onLogout, onRefresh, onC
         return;
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // 第二次取流同样可能挂住（例如设备被其他应用占用），加超时保证有反馈
+      const stream = await Promise.race([
+        navigator.mediaDevices.getUserMedia({ audio: true }),
+        new Promise((_res, rej) => setTimeout(() => {
+          const e = new Error('TimeoutError');
+          e.name = 'TimeoutError';
+          rej(e);
+        }, 10000)),
+      ]);
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
       const source = audioCtx.createMediaStreamSource(stream);
       const processor = audioCtx.createScriptProcessor(4096, 1, 1);
@@ -109,7 +117,12 @@ function ChatPanel({ messages, onVoiceResult, username, onLogout, onRefresh, onC
 
       setRecording(true);
     } catch (err) {
-      message.error(microphonePermissionMessage(err?.name === 'NotAllowedError' ? 'denied' : undefined));
+      const name = err?.name;
+      const reason = name === 'NotAllowedError' || name === 'SecurityError' ? 'denied'
+        : name === 'NotFoundError' || name === 'DevicesNotFoundError' ? 'no-device'
+          : name === 'TimeoutError' ? 'timeout'
+            : undefined;
+      message.error(microphonePermissionMessage(reason));
     }
   };
 
