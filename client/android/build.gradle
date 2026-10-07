@@ -1,0 +1,61 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+// ---------------------------------------------------------------------------
+// Capacitor 8 生成的 capacitor.build.gradle 使用 JavaVersion.VERSION_21，
+// 因此编译必须使用 JDK 21（用 JDK 17 会报 "invalid source release: 21"）。
+//
+// Gradle 在启动 JVM 之前就读取 org.gradle.java.home，所以无法在脚本里动态切换 JDK。
+// 这里做的是**校验 + 明确报错**，避免同学看到难懂的 "invalid source release: 21"。
+//
+// 指定 JDK 21 的两种方式：
+//   1. 在 client/android/gradle.properties 中写 org.gradle.java.home=<JDK21 路径>
+//   2. Android Studio → Settings → Build, Execution, Deployment → Build Tools
+//      → Gradle → Gradle JDK，选择 JDK 21
+// ---------------------------------------------------------------------------
+if (JavaVersion.current() < JavaVersion.VERSION_21) {
+    def detected = System.getProperty('java.home')
+    throw new GradleException(
+            "当前 Gradle 使用的 JDK 版本过低：${JavaVersion.current()}（路径：${detected}）\n" +
+            "Capacitor 8 需要 JDK 21。请任选一种方式修正：\n" +
+            "  1) 在 client/android/gradle.properties 中添加：\n" +
+            "       org.gradle.java.home=<JDK 21 的安装路径>\n" +
+            "  2) Android Studio → Settings → Build, Execution, Deployment → Build Tools\n" +
+            "       → Gradle → Gradle JDK 选择 JDK 21\n" +
+            "  3) 命令行构建时设置环境变量 JAVA_HOME 指向 JDK 21")
+} else {
+    logger.lifecycle("Android build: 使用 JDK ${JavaVersion.current()} (${System.getProperty('java.home')})")
+}
+
+buildscript {
+    
+    repositories {
+        // 国内镜像优先，显著加快依赖下载；google()/mavenCentral() 作为兜底。
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/central' }
+        maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.13.0'
+        classpath 'com.google.gms:google-services:4.4.4'
+
+        // NOTE: Do not place your application dependencies here; they belong
+        // in the individual module build.gradle files
+    }
+}
+
+apply from: "variables.gradle"
+
+allprojects {
+    repositories {
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/central' }
+        google()
+        mavenCentral()
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

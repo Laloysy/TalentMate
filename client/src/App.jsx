@@ -1,5 +1,6 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 import { ConfigProvider } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import LoginPage from './pages/LoginPage/LoginPage';
@@ -29,10 +30,16 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+/**
+ * Android 容器内页面由本地静态资源提供，没有服务端做 history fallback，
+ * 因此原生平台必须使用 HashRouter；浏览器开发仍使用 BrowserRouter。
+ */
+const Router = Capacitor.isNativePlatform() ? HashRouter : BrowserRouter;
+
 function App() {
   return (
     <ConfigProvider theme={theme} locale={zhCN}>
-      <BrowserRouter>
+      <Router>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
@@ -46,7 +53,7 @@ function App() {
           />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </BrowserRouter>
+      </Router>
     </ConfigProvider>
   );
 }
