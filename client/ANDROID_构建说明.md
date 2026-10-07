@@ -7,8 +7,8 @@
 
 ## 1. 当前完成状态
 
-已完成方案中的 **阶段 0（基线确认）**、**阶段 1（Capacitor Android 跑通）**
-与 **阶段 2（移动端导航）**：
+已完成方案中的 **阶段 0（基线确认）**、**阶段 1（Capacitor 跑通）**、
+**阶段 2（移动端导航）** 与 **阶段 4（原生体验）**：
 
 | 项目 | 状态 |
 |---|---|
@@ -18,17 +18,22 @@
 | 静态资源打包进 APK（非远程加载网页） | ✅ |
 | API 指向 `http://49.232.160.212` | ✅ |
 | Android 明文流量放行（当前 HTTP 阶段） | ✅ |
-| 麦克风 / 通知权限声明 | ✅ 仅声明 |
 | 生成 Debug APK | ✅ `app-debug.apk` |
-| **MobileShell + 底部四 Tab 导航** | ✅ |
-| **手机端首页 / 日程 / 名册 / 洞察 / 助手 / 设置** | ✅ |
-| **联系人详情 + 互动时间线** | ✅ |
-| **全屏编辑页替代桌面 Modal** | ✅ |
-| **登录 / 注册页移动化** | ✅ |
+| MobileShell + 底部四 Tab 导航 | ✅ |
+| 手机端首页 / 日程 / 名册 / 洞察 / 助手 / 设置 | ✅ |
+| 联系人详情 + 互动时间线 | ✅ |
+| 全屏编辑页替代桌面 Modal | ✅ |
+| 登录 / 注册页移动化 | ✅ |
+| **麦克风运行时权限** | ✅ 已验证弹窗并授权 |
+| **本地通知（排期 / 投递 / 点击跳转）** | ✅ 已验证真实投递 |
+| **Android 返回键四级规则** | ✅ 三条路径均已验证 |
+| **应用图标 + 启动页** | ✅ 自适应图标，已在桌面确认 |
+| **状态栏样式** | ✅ 深色图标 + 白色背景 |
+| **网络状态监听** | ✅ 已接入（详见 §native） |
 | 真机/模拟器验证 | ✅ 见下方"验收结果" |
 
-尚未开始（方案阶段 3 之后）：运行时权限与真机录音、本地通知、应用图标与启动页、
-状态栏与返回键处理、Release 签名、HTTPS 迁移。
+尚未开始：真机（非模拟器）录音实测、Release 签名与 AAB、
+HTTPS 迁移、服务端限流与邮件净化（方案阶段 5）、离线业务能力。
 
 ### 阶段 2 交付内容
 
@@ -54,6 +59,66 @@ client/src/
     └── MobileSettingsPage/              # 设置：账号、数据概览、退出登录
 ```
 
+### 阶段 4 交付内容（原生体验）
+
+```text
+client/src/native/
+├── platform.js        # 平台判断与日志
+├── permissions.js     # 麦克风运行时权限
+├── notifications.js   # 本地通知：排期 / 取消 / 点击回调
+├── appLifecycle.js    # 返回键、前后台切换、appUrlOpen
+├── overlays.js        # 浮层关闭器登记（供返回键优先关闭浮层）
+├── network.js         # 网络状态与变化监听
+└── statusBar.js       # 状态栏样式
+
+client/src/hooks/useNotificationSync.js   # 日程 → 本地通知的同步编排
+client/scripts/gen-assets.py              # 生成图标/启动页源图
+client/scripts/gen-android-res.py         # 生成各密度 Android 资源
+```
+
+#### 麦克风运行时权限
+
+Manifest 里声明 `RECORD_AUDIO` 只代表「允许申请」，真机上不申请就直接
+`getUserMedia` 会失败。现在在点录音时先走一次显式申请，失败时给出可操作提示
+（引导去系统设置开启）。
+
+#### 本地通知
+
+- 登录后、日程数据变化时、App 回到前台时，都会重新同步；
+- 只取未来 7 天、且「提醒时刻尚未过去」的日程；
+- 通知 id 由「事件 id + 开始时间」哈希得到，因此重复同步不会产生重复提醒；
+  事件改期后 id 变化，旧通知已被统一取消；
+- 同步策略是「先取消本 App 全部已排期通知，再按当前数据重建」，保证幂等；
+- 点击通知跳到 `#/calendar?eventId=xxx`；
+- 退出登录时清除全部通知。
+
+通知正文会判断标题里是否已含联系人姓名，避免出现
+「10 分钟后：**和张伟和张伟** 1对1 沟通」这类重复。
+
+#### Android 返回键
+
+严格按方案的四级规则实现，且浮层优先：
+
+```text
+1. 有打开的 Drawer / Bottom Sheet / Modal → 先关闭
+2. 二级页面（联系人详情 / 设置 / 助手）  → 返回所属 Tab 或首页
+3. 非首页的一级 Tab                      → 切回首页
+4. 已在首页且无浮层                      → 退出 App
+```
+
+「浮层优先」通过 `native/overlays.js` 实现：各页面在浮层打开时登记关闭函数，
+Shell 收到返回键时按后进先出询问。
+
+#### 应用图标与启动页
+
+图标沿用 App 内的品牌元素（深色圆角方块 + 白色 TM）。启动页为浅灰蓝底 +
+TM 标志 + 应用名 + 副标题，另有夜间模式版本。
+
+> 生成方式说明：方案里提到用 `@capacitor/assets`，但它依赖 `sharp@0.32`，
+> 该版本在 Windows + pnpm 10 下需要本地 node-gyp 编译，安装脚本被 pnpm 拦截后无法使用。
+> 因此改为用 Pillow 直接产出各密度资源（`scripts/gen-android-res.py`），
+> 结果可复现且不引入原生依赖。执行 `pnpm run assets:gen` 可重新生成。
+
 ### 架构决策
 
 - **一套状态，两端共用**：`AppDataProvider` 统一持有 events / contacts / heatmap 与
@@ -64,6 +129,9 @@ client/src/
 - **语音助手不占 Tab**：按方案要求做成底部中央悬浮按钮，在
   `/calendar`（顶栏已有 ＋，且月历需要完整高度）与
   `/assistant`（页面内已有更大的麦克风）两个路由自动隐藏，避免入口打架。
+- **原生能力集中在 `src/native/`**：所有 `Capacitor.isNativePlatform()` 判断与
+  插件调用都收敛到这一层，页面代码只调用语义化的函数（如
+  `ensureMicrophonePermission()`），便于后续替换实现或在 Web 端降级。
 
 ### 顺带修掉的两个既有 Bug
 
@@ -108,6 +176,32 @@ client/src/
 
 > 手机端已不再使用桌面双栏布局。登录后进入的是移动端首页，
 > 底部为四个一级 Tab，语音助手通过中央悬浮按钮进入。
+
+**阶段 4（原生体验）**
+
+```text
+✅ 通知权限：首次同步时弹出系统授权框，授权后 POST_NOTIFICATIONS=granted
+✅ 麦克风权限：RECORD_AUDIO 初始为 denied，点录音时正确发起运行时申请
+✅ 本地通知排期：未来 7 天日程按 reminder 生成通知，id 稳定可去重
+   实测「4 分钟后开始 / 提前 2 分钟提醒」→ 通知排期正确
+✅ 通知真实投递：dumpsys notification 中确认通知已投递，
+   正文「2 分钟后：通知触发验证」正确
+✅ 通知点击跳转：点击通知后 App 打开并跳到 #/calendar
+✅ 通知频道：talentmate-reminders（关怀提醒，importance=4）
+✅ 通知权限被拒绝时不残留无效通知
+✅ 返回键 - 浮层优先：日程编辑 Drawer 打开时按返回键只关闭抽屉，不离开页面
+✅ 返回键 - 二级页面：设置页按返回键 → 回到 #/
+✅ 返回键 - 一级 Tab：名册页按返回键 → 回到 #/
+✅ 应用图标：APK 内为自适应图标 mipmap-anydpi-v26/ic_launcher.xml，
+   桌面抽屉中显示深色 TM 图标与「TalentMate 伴贤」名称
+✅ 启动页：各密度 drawable 已生成（竖屏/横屏/通用，共 11 组）
+✅ 状态栏：深色图标 + 白色背景，内容不被状态栏遮挡
+✅ logcat 无 FATAL EXCEPTION
+```
+
+> 已知测试残留：反复 `adb install -r` 会让旧版本排期的闹钟变成无法触发的孤儿记录，
+> 表现为 `getPending()` 里还留着早已过期的通知。这只在反复覆盖安装的调试场景出现，
+> 全新安装不会遇到；代码里每次同步都会先 `cancel` 全部再重建。
 
 ---
 
@@ -241,6 +335,7 @@ pnpm run android:sync    # vite build + cap sync android
 pnpm run android:apk     # 构建 Debug APK（内部用 gradlew.bat，中文路径下会失败）
 pnpm run android:open    # 用 Android Studio 打开 android 工程
 pnpm run android:run     # 构建并在已连接设备上运行
+pnpm run assets:gen      # 重新生成应用图标与启动页（需 python + Pillow）
 ```
 
 > **修改 React 代码后必须重新执行 `android:sync`**，否则 APK 里仍是旧的构建结果。
@@ -261,36 +356,73 @@ client/android/app/build/outputs/apk/debug/app-debug.apk
 | `client/.env.production` | 新增。`VITE_API_URL=http://49.232.160.212` |
 | `client/public/offline.html` | 新增。`server.errorPath` 指向的离线提示页 |
 | `client/build-android.ps1` | 新增。一键构建脚本 |
-| `client/package.json` | 新增 Capacitor 依赖、typescript，以及 `android:*` 脚本 |
-| `client/src/App.jsx` | 原生平台改用 `HashRouter` |
+| `client/package.json` | 新增 Capacitor 依赖、typescript、`android:*` 与 `assets:gen` 脚本 |
+| `client/src/App.jsx` | 原生平台改用 `HashRouter`，并按环境切换桌面/手机路由表 |
 | `client/src/services/api.js` | 401 在原生平台改用 hash 跳转，避免白屏 |
+| `client/src/hooks/useAppData.jsx` | 新增。桌面与手机共用的数据源 |
+| `client/src/hooks/useVoiceAssistant.js` | 新增。两端共用的语音结果处理 |
+| `client/src/hooks/useNotificationSync.js` | 新增。日程 → 本地通知的同步编排 |
+| `client/src/layouts/MobileShell.jsx` | 新增。手机外壳（底部导航、悬浮按钮、返回键、状态栏） |
+| `client/src/components/Mobile*.jsx`、`VoiceFab.jsx` | 新增。移动端公共组件 |
+| `client/src/pages/Mobile*/` | 新增。六个移动端页面 |
+| `client/src/pages/HomePage/{eventTypes,heatmap}.js` | 新增。两端共用的类型与状态常量 |
+| `client/src/native/` | 新增。原生能力封装（权限/通知/返回键/网络/状态栏） |
+| `client/src/styles/mobile.css` | 新增。安全区、触控区、底部 Sheet 样式 |
+| `client/scripts/gen-assets.py` | 新增。生成图标与启动页源图 |
+| `client/scripts/gen-android-res.py` | 新增。生成各密度 Android 资源 |
 | `client/android/` | 新增。Capacitor 生成的 Android 原生工程 |
 | `client/android/app/src/main/AndroidManifest.xml` | 开放明文流量，声明麦克风与通知权限 |
-| `client/android/gradle.properties` | 指定 JDK 17、提升 Gradle 堆内存 |
+| `client/android/app/src/main/res/drawable/ic_stat_icon.xml` | 新增。通知栏单色小图标 |
+| `client/android/gradle.properties` | 提升 Gradle 堆内存（JDK 路径改为注释，见 §3） |
 
 ---
 
-## 7. 下一步（方案阶段 2 起）
+## 7. 下一步
 
-1. **移动端导航**：`MobileShell`、底部导航、语音助手改 Bottom Sheet；
-2. **逐页改版**：登录注册、日程列表与月历、名册、联系人详情、洞察、
-   语音助手、邮件编辑、新手引导；
-3. **原生体验**：`getUserMedia` 录音的运行时权限、`@capacitor/local-notifications`
-   本地通知、返回键处理、状态栏与安全区、应用图标与启动页；
-4. **稳定性与安全**：接口限流、邮件 HTML 净化、时区统一、日志脱敏；
-5. **发布**：Release 签名、AAB、验收清单、演示视频。
+**已完成**：阶段 0 / 1 / 2 / 4。
+
+**剩余建议**
+
+1. **阶段 3 收尾**：邮件编辑与预览改为移动端独立页（当前复用 `MailPreviewModal`）、
+   新手引导改为移动端形式（当前桌面 Tour 仅在浏览器端出现）；
+2. **阶段 5 稳定性与安全**：接口限流、邮件 HTML 净化、日期与时区统一、日志脱敏、
+   数据库业务账户；
+3. **真机验证**：模拟器无法替代真机录音（不同厂商的麦克风权限与音频路由差异较大）；
+4. **发布（阶段 6）**：Release 签名与 AAB、测试账户、验收清单、演示视频；
+5. **HTTPS 迁移**：切换后需同时关闭 `allowMixedContent`、`server.cleartext` 与
+   `android:usesCleartextTraffic`。
 
 ---
 
-## 8. 验证清单（阶段 1 验收）
+## 8. 验证清单
 
+### 阶段 1
 - [x] APK 可安装并启动
 - [x] 页面来自 APK 本地资源（`Loading app at https://localhost`）
 - [x] 使用测试账户登录成功
 - [x] 日程 / 名册 / 洞察列表能拉到真实数据
 - [x] 退出登录后回到登录页
-- [ ] 返回键不会白屏（需阶段 4 处理返回键逻辑）
 - [x] 服务器密钥未出现在 APK 中
+
+### 阶段 2
+- [x] 底部四 Tab 可切换且高亮正确
+- [x] 六个移动页面均可进入，无 JS 报错
+- [x] 通过 App 表单可创建联系人与日程（写入真实后端）
+- [x] 操作项常显，不依赖 hover
+
+### 阶段 4
+- [x] 麦克风运行时权限弹窗正常
+- [x] 通知权限申请与授权状态正确
+- [x] 本地通知可真实投递，正文正确
+- [x] 点击通知跳到对应日程页
+- [x] 返回键：浮层优先 → 二级页面 → 一级 Tab → 退出
+- [x] 应用图标与启动页生效
+- [x] 状态栏不遮挡内容
+
+### 待真机确认
+- [ ] 真机录音（腾讯云 ASR 闭环）
+- [ ] 通知在厂商 ROM 后台限制下的存活情况
+- [ ] 刘海屏 / 手势导航的安全区表现
 
 ### 临时测试账户
 

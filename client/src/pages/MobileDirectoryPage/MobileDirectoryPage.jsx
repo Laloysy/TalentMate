@@ -8,6 +8,7 @@ import dayjs from 'dayjs';
 import MobileHeader from '../../components/MobileHeader';
 import { useAppData } from '../../hooks/useAppData';
 import { heatmapLabel, heatmapStyle } from '../HomePage/heatmap';
+import { useOverlayBackHandler } from '../../native/overlays';
 import api from '../../services/api';
 
 const CONTACT_TYPES = [
@@ -33,6 +34,10 @@ function MobileDirectoryPage() {
   const [csv, setCsv] = React.useState('');
   const [submitting, setSubmitting] = React.useState(false);
   const [form] = Form.useForm();
+
+  // Android 返回键：先关浮层
+  useOverlayBackHandler(editorOpen, () => setEditorOpen(false));
+  useOverlayBackHandler(csvOpen, () => setCsvOpen(false));
 
   // 支持从首页「添加联系人」快捷入口直接打开编辑面板
   React.useEffect(() => {

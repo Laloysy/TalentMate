@@ -8,6 +8,7 @@ import MobileHeader from '../../components/MobileHeader';
 import MailPreviewModal from '../HomePage/MailPreviewModal';
 import { useAppData } from '../../hooks/useAppData';
 import { heatmapLabel, heatmapStyle } from '../HomePage/heatmap';
+import { useOverlayBackHandler } from '../../native/overlays';
 import api from '../../services/api';
 
 const CONTACT_TYPES = [
@@ -45,6 +46,10 @@ function MobileContactDetailPage() {
   const [submitting, setSubmitting] = React.useState(false);
   const [mailOpen, setMailOpen] = React.useState(false);
   const [form] = Form.useForm();
+
+  // Android 返回键：先关浮层
+  useOverlayBackHandler(editorOpen, () => setEditorOpen(false));
+  useOverlayBackHandler(mailOpen, () => setMailOpen(false));
 
   const contactId = Number(id);
   const contact = React.useMemo(

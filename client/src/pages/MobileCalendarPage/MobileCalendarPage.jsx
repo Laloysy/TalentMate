@@ -9,6 +9,7 @@ import 'dayjs/locale/zh-cn';
 import MobileHeader from '../../components/MobileHeader';
 import MailPreviewModal from '../HomePage/MailPreviewModal';
 import { useAppData } from '../../hooks/useAppData';
+import { useOverlayBackHandler } from '../../native/overlays';
 import {
   EVENT_TYPE_OPTIONS, DOT_COLORS, eventTypeMeta,
 } from '../HomePage/eventTypes';
@@ -35,6 +36,10 @@ function MobileCalendarPage() {
   const [daySheetDate, setDaySheetDate] = React.useState(null);
   const [mailPreview, setMailPreview] = React.useState({ open: false, event: null, contact: null });
   const [form] = Form.useForm();
+
+  // Android 返回键：先关浮层，再返回上一页
+  useOverlayBackHandler(editorOpen, () => setEditorOpen(false));
+  useOverlayBackHandler(!!daySheetDate, () => setDaySheetDate(null));
 
   const current = dayjs(selectedDate);
 

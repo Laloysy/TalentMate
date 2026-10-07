@@ -4,6 +4,7 @@ import { AudioOutlined, UserOutlined, LogoutOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import api from '../../services/api';
 import MailPreviewModal from './MailPreviewModal';
+import { ensureMicrophonePermission, microphonePermissionMessage } from '../../native/permissions';
 
 // Encode Float32 PCM samples to WAV (16-bit, mono, 16kHz)
 function encodeWAV(samples, sampleRate) {
@@ -67,6 +68,13 @@ function ChatPanel({ messages, onVoiceResult, username, onLogout, onRefresh, onC
     }
 
     try {
+      // 原生环境下先申请麦克风运行时权限，否则 getUserMedia 会直接失败
+      const permission = await ensureMicrophonePermission();
+      if (!permission.granted) {
+        message.error(microphonePermissionMessage(permission.reason));
+        return;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
       const source = audioCtx.createMediaStreamSource(stream);
@@ -101,7 +109,7 @@ function ChatPanel({ messages, onVoiceResult, username, onLogout, onRefresh, onC
 
       setRecording(true);
     } catch (err) {
-      message.error('无法访问麦克风，请检查权限');
+      message.error(microphonePermissionMessage(err?.name === 'NotAllowedError' ? 'denied' : undefined));
     }
   };
 

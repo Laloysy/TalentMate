@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  通知栏小图标（单色）。
+
+  Android 要求通知小图标是「白色剪影 + 透明背景」，
+  系统会自行着色，因此这里只画形状、不填彩色。
+  形状为日历外形 + 顶部挂钩，贴合「关怀提醒」语义。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFF">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M7,2h1.5v2h7V2H17v2h1.5A2.5,2.5 0 0,1 21,6.5v12A2.5,2.5 0 0,1 18.5,21h-13A2.5,2.5 0 0,1 3,18.5v-12A2.5,2.5 0 0,1 5.5,4H7V2zM19.5,9h-15v9.5a0.5,0.5 0 0,0 0.5,0.5h14a0.5,0.5 0 0,0 0.5,-0.5V9zM19.5,6.5a0.5,0.5 0 0,0 -0.5,-0.5h-13a0.5,0.5 0 0,0 -0.5,0.5V7.5h14V6.5z" />
+</vector>
