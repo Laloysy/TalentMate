@@ -7,10 +7,19 @@ client/node_modules
 server/node_modules
 
 # Build outputs
-client/dist
+#
+# ⚠️ 不要排除 client/dist：
+#   生产服务器只有 1.7GB 内存，在容器内构建客户端会打满内存并使整机失联，
+#   因此部署时使用 `--build-arg PREBUILT_CLIENT=1`，
+#   让 Docker 直接使用本地已构建好的 client/dist。
+#   一旦 client/dist 被排除，构建会报
+#   "failed to calculate checksum ... /client/dist: not found"。
+#
+# 注意：不带斜杠的 `dist` 会匹配任意层级下的同名目录，
+# 同样会把 client/dist 一起排除掉，因此必须写成 `/dist`。
 server/public
-dist
-build
+/dist
+/build
 
 # Local env and logs
 .env
