@@ -39,8 +39,18 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- 语音助手录音。当前阶段仅声明，第 4 阶段接入运行时授权与真机录音。 -->
+
+    <!-- 语音助手录音（运行时授权见 src/native/permissions.js）。
+         除 RECORD_AUDIO 外还必须声明 MODIFY_AUDIO_SETTINGS：
+         WebView 的 Chromium 音频采集要求两者同时具备，缺少后者时
+         cr_media 会打印
+           "Requires MODIFY_AUDIO_SETTINGS and RECORD_AUDIO.
+            No audio device will be available for recording"
+         并且 getUserMedia 以 NotAllowedError 失败 —— 错误信息具有误导性，
+         会让人以为是用户拒绝了权限。 -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <!-- Android 13+ 本地通知。第 4 阶段接入 @capacitor/local-notifications 后使用。 -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!-- Android 13+ 本地通知（见 src/native/notifications.js） -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>
