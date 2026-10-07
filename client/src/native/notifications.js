@@ -52,8 +52,28 @@ function buildBody(reminder, event) {
   return `${prefix}${title}`;
 }
 
-/** 检查并申请通知权限 */
-export async function ensureNotificationPermission() {
+/** 只检查通知权限，不发起申请（用于需要「静默判断」的场景） */
+export async function checkNotificationPermission() {
+  if (!isNative) return { granted: false, reason: 'web' };
+  try {
+    const status = await LocalNotifications.checkPermissions();
+    const granted = status.display === 'granted';
+    return { granted, reason: granted ? undefined : 'denied' };
+  } catch (err) {
+    nativeLog('check permission error', err?.message);
+    return { granted: false, reason: 'error' };
+  }
+}
+
+/**
+ * 主动申请通知权限。
+ *
+ * 只在「用户明确表达了要提醒」时才调用（例如设置页打开提醒开关、
+ * 或新建了带提醒的日程）。绝对不要在 App 启动或登录时自动调用，
+ * 否则会和首次引导、麦克风权限叠在一起连弹系统弹窗，
+ * 用户很容易直接点拒绝 —— 方案 §10.10 明确要求避免这种情况。
+ */
+export async function requestNotificationPermission() {
   if (!isNative) return { granted: false, reason: 'web' };
 
   try {
@@ -62,7 +82,7 @@ export async function ensureNotificationPermission() {
       status = await LocalNotifications.requestPermissions();
     }
     const granted = status.display === 'granted';
-    nativeLog('notification permission:', status.display);
+    nativeLog('notification permission (requested):', status.display);
     return { granted, reason: granted ? undefined : 'denied' };
   } catch (err) {
     nativeLog('notification permission error', err?.message);
@@ -87,15 +107,18 @@ export async function cancelAllNotifications() {
 /**
  * 把日程同步为本地通知。
  *
+ * 注意：这里**不会**主动申请通知权限（见 requestNotificationPermission 的说明）。
+ * 只有已经获得授权时才排期；未授权时同步返回并清掉旧排期，避免留下点不开的通知。
+ *
  * @param {Array} events 日程列表（必须含 id / title / start_time / reminder）
  * @returns {{scheduled:number, skipped:number, permission:boolean}}
  */
 export async function syncEventNotifications(events = []) {
   if (!isNative) return { scheduled: 0, skipped: 0, permission: false };
 
-  const permission = await ensureNotificationPermission();
+  const permission = await checkNotificationPermission();
   if (!permission.granted) {
-    // 没有权限也要把旧的清掉，避免留下点不开的通知
+    // 没有权限时清掉旧的，避免残留无效通知
     await cancelAllNotifications();
     return { scheduled: 0, skipped: events.length, permission: false };
   }

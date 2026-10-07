@@ -4,12 +4,16 @@ import {
   Modal, message, Popconfirm, Calendar, Segmented, Spin,
 } from 'antd';
 import { PlusOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import 'dayjs/locale/zh-cn';
 import MobileHeader from '../../components/MobileHeader';
-import MailPreviewModal from '../HomePage/MailPreviewModal';
 import { useAppData } from '../../hooks/useAppData';
 import { useOverlayBackHandler } from '../../native/overlays';
+import { isNative } from '../../native/platform';
+import {
+  checkNotificationPermission, requestNotificationPermission,
+} from '../../native/notifications';
 import {
   EVENT_TYPE_OPTIONS, DOT_COLORS, eventTypeMeta,
 } from '../HomePage/eventTypes';
@@ -34,8 +38,8 @@ function MobileCalendarPage() {
   const [editingEvent, setEditingEvent] = React.useState(null);
   const [submitting, setSubmitting] = React.useState(false);
   const [daySheetDate, setDaySheetDate] = React.useState(null);
-  const [mailPreview, setMailPreview] = React.useState({ open: false, event: null, contact: null });
   const [form] = Form.useForm();
+  const navigate = useNavigate();
 
   // Android 返回键：先关浮层，再返回上一页
   useOverlayBackHandler(editorOpen, () => setEditorOpen(false));
@@ -106,6 +110,18 @@ function MobileCalendarPage() {
       refreshEvents();
       refreshTodayEvents();
       refreshHeatmap();
+
+      // 用户刚设置了「提前提醒」，这正是申请通知权限的合适时机：
+      // 意图明确、上下文清楚，而不是一启动就弹系统框（方案 §10.10）。
+      if (isNative && payload.reminder > 0) {
+        const perm = await checkNotificationPermission();
+        if (!perm.granted) {
+          const asked = await requestNotificationPermission();
+          if (asked.granted) {
+            message.success('已开启提醒通知');
+          }
+        }
+      }
     } catch (err) {
       if (err?.errorFields) return; // 表单校验失败
       message.error('保存失败，请重试');
@@ -152,11 +168,6 @@ function MobileCalendarPage() {
       .filter((ev) => dayjs(ev.start_time).format('YYYY-MM-DD') === ds)
       .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
   }, [events, daySheetDate]);
-
-  const findContact = (ev) => contacts.find((c) => c.id === ev.contact_id)
-    || { id: ev.contact_id, name: ev.contact_name, email: ev.contact_email,
-      department: ev.contact_department, role: ev.contact_role,
-      avatar_color: ev.contact_avatar_color };
 
   /** 月历格子：只画圆点 + 超出数量，不放标题（窄屏放不下） */
   const cellRender = (date) => {
@@ -253,7 +264,7 @@ function MobileCalendarPage() {
                       event={ev}
                       onEdit={() => openEdit(ev)}
                       onDelete={() => handleDelete(ev.id)}
-                      onMail={() => setMailPreview({ open: true, event: ev, contact: findContact(ev) })}
+                      onMail={() => navigate(`/mail/${ev.id}`)}
                     />
                   ))}
                 </div>
@@ -411,13 +422,6 @@ function MobileCalendarPage() {
           </Form>
         </div>
       </Drawer>
-
-      <MailPreviewModal
-        open={mailPreview.open}
-        event={mailPreview.event}
-        contact={mailPreview.contact}
-        onClose={() => setMailPreview({ open: false, event: null, contact: null })}
-      />
     </>
   );
 }
@@ -503,7 +507,7 @@ function EventCard({ event, onEdit, onDelete, onMail, compact }) {
                   border border-slate-100 py-1 overflow-hidden">
                   <MenuItem onClick={() => { setMenuOpen(false); onEdit(); }}>编辑</MenuItem>
                   {event.contact_id && (
-                    <MenuItem onClick={() => { setMenuOpen(false); onMail(); }}>预览邮件</MenuItem>
+                    <MenuItem onClick={() => { setMenuOpen(false); onMail(); }}>邮件草稿</MenuItem>
                   )}
                   <Popconfirm
                     title="确认删除？"

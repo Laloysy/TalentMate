@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import MobileBottomNav from '../components/MobileBottomNav';
 import VoiceFab from '../components/VoiceFab';
+import MobileOnboarding from '../pages/MobileOnboarding/MobileOnboarding';
 import { useAppData } from '../hooks/useAppData';
 import { useNotificationSync } from '../hooks/useNotificationSync';
 import { isNative } from '../native/platform';
@@ -15,8 +16,9 @@ import '../styles/mobile.css';
  *   /calendar  —— 顶栏已有 ＋ 新增入口，且月历需要完整高度
  *   /assistant —— 页面本身就是语音助手（内含更大的麦克风按钮），
  *                 再叠一个 FAB 会出现两个互相抢焦点的录音入口
+ *   /mail      —— 底部已有保存按钮，且需要完整高度展示预览
  */
-const HIDE_FAB_ON = ['/calendar', '/assistant'];
+const HIDE_FAB_ON = ['/calendar', '/assistant', '/mail'];
 
 /**
  * 返回键的路由层级。
@@ -30,6 +32,7 @@ const TAB_PATHS = ['/calendar', '/contacts', '/insights'];
  * 职责：
  *   - 固定底部导航 + 语音悬浮按钮 + 安全区留白
  *   - 状态栏样式、Android 返回键、本地通知同步（仅原生环境）
+ *   - 首次进入时展示移动端新手引导
  *
  * 顶栏由各页面自行渲染，因为标题与右侧操作不同，二级页面还需要返回按钮。
  */
@@ -38,7 +41,15 @@ function MobileShell() {
   const { pathname } = useLocation();
   const { events } = useAppData();
 
+  const [tourOpen, setTourOpen] = React.useState(false);
+
   const showFab = !HIDE_FAB_ON.some((p) => pathname.startsWith(p));
+
+  // 首次进入时展示新手引导（移动端为 3 页滑屏，不同于桌面 Tour）
+  React.useEffect(() => {
+    const seen = localStorage.getItem('has_seen_tour') === '1';
+    if (!seen) setTourOpen(true);
+  }, []);
 
   // 仅原生环境：状态栏样式
   React.useEffect(() => {
@@ -70,6 +81,11 @@ function MobileShell() {
           navigate('/');
           return true;
         }
+        // 邮件草稿页自带「未保存」确认，这里只负责回退到日程
+        if (pathname.startsWith('/mail/')) {
+          navigate('/calendar');
+          return true;
+        }
         // 在非首页的一级 Tab → 切回首页
         if (TAB_PATHS.some((p) => pathname.startsWith(p))) {
           navigate('/');
@@ -89,6 +105,7 @@ function MobileShell() {
       </main>
       {showFab && <VoiceFab />}
       <MobileBottomNav />
+      <MobileOnboarding open={tourOpen} onClose={() => setTourOpen(false)} />
     </div>
   );
 }

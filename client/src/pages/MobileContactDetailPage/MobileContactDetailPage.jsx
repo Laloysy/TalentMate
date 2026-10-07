@@ -5,7 +5,6 @@ import {
 } from 'antd';
 import dayjs from 'dayjs';
 import MobileHeader from '../../components/MobileHeader';
-import MailPreviewModal from '../HomePage/MailPreviewModal';
 import { useAppData } from '../../hooks/useAppData';
 import { heatmapLabel, heatmapStyle } from '../HomePage/heatmap';
 import { useOverlayBackHandler } from '../../native/overlays';
@@ -44,12 +43,10 @@ function MobileContactDetailPage() {
   const [loadingTimeline, setLoadingTimeline] = React.useState(true);
   const [editorOpen, setEditorOpen] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
-  const [mailOpen, setMailOpen] = React.useState(false);
   const [form] = Form.useForm();
 
   // Android 返回键：先关浮层
   useOverlayBackHandler(editorOpen, () => setEditorOpen(false));
-  useOverlayBackHandler(mailOpen, () => setMailOpen(false));
 
   const contactId = Number(id);
   const contact = React.useMemo(
@@ -201,7 +198,7 @@ function MobileContactDetailPage() {
           <div className="grid grid-cols-3 gap-2 mt-4">
             <ActionButton label="安排沟通" primary onClick={() => navigate(`/calendar?action=new&contactId=${contactId}`)} />
             <ActionButton label="编辑资料" onClick={openEdit} />
-            <ActionButton label="写邮件" onClick={() => setMailOpen(true)} disabled={!contact.email && !contact.id} />
+            <ActionButton label="写邮件" onClick={() => navigate(`/mail/new?contactId=${contactId}&from=contact`)} disabled={!contact.email && !contact.id} />
           </div>
         </section>
 
@@ -314,13 +311,6 @@ function MobileContactDetailPage() {
           </Form>
         </div>
       </Drawer>
-
-      <MailPreviewModal
-        open={mailOpen}
-        event={{ id: null, title: '直接邮件', start_time: dayjs().format('YYYY-MM-DD HH:mm') }}
-        contact={contact}
-        onClose={() => setMailOpen(false)}
-      />
     </>
   );
 }

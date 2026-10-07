@@ -1,6 +1,7 @@
 import React from 'react';
 import { Modal, Input, Button, message } from 'antd';
 import api from '../../services/api';
+import { sanitizeEmailHtml } from '../../utils/sanitizeEmail';
 
 function MailPreviewModal({ open, onClose, event, contact }) {
   const [loading, setLoading] = React.useState(false);
@@ -74,7 +75,8 @@ function MailPreviewModal({ open, onClose, event, contact }) {
           </div>
         </div>
         <div className="bg-slate-100 rounded-xl p-4 overflow-auto max-h-[520px]">
-          <div dangerouslySetInnerHTML={{ __html: preview?.html || '<div style="padding:32px;color:#94a3b8;">正在生成预览...</div>' }} />
+          {/* 预览 HTML 来自后端模板，渲染前必须净化，避免注入脚本被执行 */}
+          <div dangerouslySetInnerHTML={{ __html: preview?.html ? sanitizeEmailHtml(preview.html) : '<div style="padding:32px;color:#94a3b8;">正在生成预览...</div>' }} />
         </div>
       </div>
     </Modal>

@@ -15,6 +15,7 @@ import MobileDirectoryPage from './pages/MobileDirectoryPage/MobileDirectoryPage
 import MobileContactDetailPage from './pages/MobileContactDetailPage/MobileContactDetailPage';
 import MobileInsightsPage from './pages/MobileInsightsPage/MobileInsightsPage';
 import MobileAssistantPage from './pages/MobileAssistantPage/MobileAssistantPage';
+import MobileMailEditorPage from './pages/MobileMailEditorPage/MobileMailEditorPage';
 import MobileSettingsPage from './pages/MobileSettingsPage/MobileSettingsPage';
 import { AppDataProvider } from './hooks/useAppData';
 
@@ -75,6 +76,7 @@ function MobileRoutes() {
       <Route path="/contacts/:id" element={<MobileContactDetailPage />} />
       <Route path="/insights" element={<MobileInsightsPage />} />
       <Route path="/assistant" element={<MobileAssistantPage />} />
+      <Route path="/mail/:eventId" element={<MobileMailEditorPage />} />
       <Route path="/settings" element={<MobileSettingsPage />} />
     </Route>
   );
