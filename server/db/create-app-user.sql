@@ -20,14 +20,24 @@
 CREATE USER IF NOT EXISTS 'talentmate_app'@'%'
   IDENTIFIED BY 'CHANGE_ME_TO_A_STRONG_PASSWORD';
 
--- 只授予该库的数据操作权限：
---   不使用 ALL PRIVILEGES，不授予 CREATE / DROP / ALTER / GRANT 等结构或权限类操作。
---   应用启动时 services/schema.js 会做「缺列则补列」的 ALTER TABLE，
---   因此需要 ALTER；如果后续不需要自动补列，可以去掉这一项进一步收紧。
-GRANT SELECT, INSERT, UPDATE, DELETE, ALTER, INDEX
+-- 只授予该库所需的数据与结构操作权限。
+-- 不授予 DROP / GRANT OPTION / CREATE USER / SUPER / FILE，也不授权 mysql 系统库。
+--
+-- 各项权限的用途：
+--   SELECT/INSERT/UPDATE/DELETE —— 正常业务读写
+--   ALTER                       —— services/schema.js 启动时补列
+--   CREATE / REFERENCES         —— services/schema.js 启动时
+--                                  `CREATE TABLE IF NOT EXISTS`（含外键）
+--                                  缺这两项会看到：
+--                                  [Schema] Failed to ensure schema: CREATE command denied
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, REFERENCES, INDEX, ALTER
   ON voice_calendar.* TO 'talentmate_app'@'%';
 
 FLUSH PRIVILEGES;
 
 -- 校验：应只看到 voice_calendar 库上的授权
 SHOW GRANTS FOR 'talentmate_app'@'%';
+
+-- 回滚（如需）：
+--   DROP USER 'talentmate_app'@'%';
+-- 并把 .env 的 DB_USER / DB_PASSWORD 改回原来的账户。
