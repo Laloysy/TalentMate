@@ -6,6 +6,7 @@ const asrService = require('../services/asr');
 const intentParser = require('../services/intentParser');
 const pool = require('../db'); // to be created
 const { logInteraction } = require('../services/interactions');
+const { voiceLimiter } = require('../middleware/rateLimit');
 
 const router = express.Router();
 
@@ -35,7 +36,8 @@ const upload = multer({
 });
 
 // POST /api/voice/recognize - Full voice recognition pipeline
-router.post('/recognize', upload.single('audio'), async (req, res) => {
+// 语音识别消耗腾讯云 ASR + DeepSeek 额度，套用较严格的限流
+router.post('/recognize', voiceLimiter, upload.single('audio'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: '未收到音频文件' });

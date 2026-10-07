@@ -14,6 +14,8 @@ const eventsRoutes = require('./routes/events');
 const voiceRoutes = require('./routes/voice');
 const { initReminder } = require('./services/reminder');
 const { ensureSchema } = require('./services/schema');
+const { globalLimiter } = require('./middleware/rateLimit');
+const log = require('./services/logger');
 const pool = require('./db');
 
 const app = express();
@@ -21,7 +23,17 @@ const PORT = process.env.PORT || 3001;
 
 // --------------- Middleware ---------------
 app.use(cors());
-app.use(express.json());
+// 限制 JSON 体积：CSV 粘贴导入是最大的合法载荷，1MB 足够，
+// 同时避免超大请求体拖垮进程（原实现用默认的 100kb，
+// 会让「粘贴 CSV 导入」在大批量时直接 413）
+app.use(express.json({ limit: '1mb' }));
+
+// 透传真实客户端 IP，让限流能正确区分来源
+// （部署在 Nginx 反向代理之后，req.ip 否则会全是 127.0.0.1）
+app.set('trust proxy', 1);
+
+// 全局兜底限流，数值宽松，仅用于挡住明显的滥用与爬取
+app.use(globalLimiter);
 
 // --------------- API Routes ---------------
 app.use('/api/auth', authRoutes);
@@ -41,10 +53,12 @@ app.get('*', (req, res) => {
 
 // Global error handler
 app.use((err, _req, res, _next) => {
-  console.error('Unhandled error:', err);
+  // 用脱敏日志，避免 err 里带出连接串、SQL 细节或凭证
+  log.error('Unhandled error:', err);
+  // 对外只返回通用信息：err.message 可能包含数据库结构或内部路径
   res.status(500).json({
     success: false,
-    message: err.message || 'Internal server error',
+    message: '服务器内部错误',
   });
 });
 

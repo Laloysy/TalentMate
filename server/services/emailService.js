@@ -37,6 +37,11 @@ function getTransporter() {
 async function sendReminderEmail(to, eventTitle, startTime, reminderMinutes) {
   try {
     const transporter = getTransporter();
+    // 该邮件同样会把用户可控内容拼进 HTML，必须转义后再插入，
+    // 否则事件标题里若含 <script> / onerror 等内容会被直接渲染。
+    const safeTitle = escapeHtml(eventTitle);
+    const safeStart = escapeHtml(startTime);
+    const safeReminder = escapeHtml(reminderMinutes);
     const info = await transporter.sendMail({
       from: process.env.SMTP_FROM,
       to,
@@ -53,15 +58,15 @@ async function sendReminderEmail(to, eventTitle, startTime, reminderMinutes) {
             <div style="background:#F8FAFD;border-radius:12px;padding:16px;">
               <div style="margin-bottom:10px;">
                 <span style="color:#94A3B8;font-size:12px;">事项</span><br>
-                <span style="color:#1E293B;font-size:16px;font-weight:600;">${eventTitle}</span>
+                <span style="color:#1E293B;font-size:16px;font-weight:600;">${safeTitle}</span>
               </div>
               <div style="margin-bottom:10px;">
                 <span style="color:#94A3B8;font-size:12px;">🕐 开始时间</span><br>
-                <span style="color:#1E293B;font-size:15px;">${startTime}</span>
+                <span style="color:#1E293B;font-size:15px;">${safeStart}</span>
               </div>
               <div>
                 <span style="color:#94A3B8;font-size:12px;">⏰ 提前提醒</span><br>
-                <span style="color:#1677FF;font-size:14px;font-weight:500;">${reminderMinutes} 分钟</span>
+                <span style="color:#1677FF;font-size:14px;font-weight:500;">${safeReminder} 分钟</span>
               </div>
             </div>
             <p style="color:#64748B;font-size:13px;margin:20px 0 0;">祝您一切顺利！</p>

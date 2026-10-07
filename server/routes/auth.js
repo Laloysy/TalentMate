@@ -2,11 +2,13 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../db'); // to be created
+const { authLimiter } = require('../middleware/rateLimit');
 
 const router = express.Router();
 
 // POST /api/auth/register
-router.post('/register', async (req, res) => {
+// 注册接口套用限流：防止批量注册（登录成功不计数，只统计失败尝试）
+router.post('/register', authLimiter, async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
@@ -58,7 +60,8 @@ router.post('/register', async (req, res) => {
 });
 
 // POST /api/auth/login
-router.post('/login', async (req, res) => {
+// 登录接口套用限流：登录成功不计入，失败尝试累计，用于挡住密码暴力破解
+router.post('/login', authLimiter, async (req, res) => {
   try {
     const { username, password } = req.body;
 

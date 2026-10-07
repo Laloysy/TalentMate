@@ -3,11 +3,12 @@ const pool = require('../db');
 const authMiddleware = require('../middleware/auth');
 const { renderCareEmail } = require('../services/emailService');
 const { logInteraction } = require('../services/interactions');
+const { mailLimiter } = require('../middleware/rateLimit');
 
 const router = express.Router();
 router.use(authMiddleware);
 
-router.post('/preview', async (req, res) => {
+router.post('/preview', mailLimiter, async (req, res) => {
   try {
     const { eventId, contactId, event = {}, contact = {}, bodyOverride } = req.body;
     const data = await loadMailContext(req.user.id, eventId, contactId, event, contact);
