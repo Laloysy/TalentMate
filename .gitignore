@@ -42,3 +42,11 @@ docker-compose.override.yml
 
 update.md
 talentmate.tar.gz
+
+# Android 签名材料（绝不提交）
+# keystore 与配套密码一旦泄漏，任何人都能签出可覆盖安装的假包。
+client/android/release.keystore
+client/android/*.keystore
+client/android/*.jks
+client/android/keystore.properties
+*.pepk

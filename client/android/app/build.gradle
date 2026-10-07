@@ -1,5 +1,22 @@
 apply plugin: 'com.android.application'
 
+// ---------------------------------------------------------------------------
+// Release 签名配置
+//
+// 签名材料（keystore + 密码）不入库，通过 client/android/keystore.properties 提供，
+// 生成方式见 scripts/gen-keystore.ps1。
+// 文件不存在时不影响 debug 构建，只是 assembleRelease 会产出未签名包，
+// 所以这里「有则启用」，并打印一行提示。
+// ---------------------------------------------------------------------------
+def keystorePropsFile = rootProject.file('keystore.properties')
+def keystoreProps = new Properties()
+def hasReleaseSigning = keystorePropsFile.exists()
+if (hasReleaseSigning) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+} else {
+    logger.lifecycle('未找到 keystore.properties —— assembleRelease 将不会签名')
+}
+
 android {
     namespace = "com.talentmate.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,10 +33,23 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile rootProject.file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }
