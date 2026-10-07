@@ -158,7 +158,20 @@ async function executeIntent(userId, intentResult) {
         };
       }
       const contact = contactResolution.contact;
-      const contactId = contact?.id || null;
+      let contactId = contact?.id || null;
+      // 校验联系人是否真的存在：voice 结果可能被缓存（resolvedContactId），
+      // 而联系人可能已被删除 —— 直接拿旧 id 去建日程会触发外键约束失败，
+      // 整个请求以 500 结束。这里退化为「无关联日程」，而不是让用户看到服务器错误。
+      if (contactId) {
+        const [alive] = await pool.query(
+          'SELECT id FROM contacts WHERE id = ? AND user_id = ?',
+          [contactId, userId]
+        );
+        if (alive.length === 0) {
+          console.warn(`[Voice] contact ${contactId} 不存在或不属于用户 ${userId}，改为不关联联系人`);
+          contactId = null;
+        }
+      }
       const eventType = normalizeEventType(intentResult.eventType || events[0]?.eventType || inferEventType(events[0]?.title || ''));
 
       const insertedIds = [];
