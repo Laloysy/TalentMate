@@ -6,128 +6,50 @@ import ChatPanel from './ChatPanel';
 import DirectoryPanel from './DirectoryPanel';
 import TimelinePanel from './TimelinePanel';
 import api from '../../services/api';
+import { useAppData } from '../../hooks/useAppData';
+import { applyVoiceResult } from '../../hooks/useVoiceAssistant';
 
 /**
- * MainLayout — responsive dual-panel per PRD §4.4.
- * Left: calendar (60–65%), Right: AI chat (35–40%).
+ * MainLayout — 桌面端双栏工作台（浏览器访问时使用）。
+ *
+ * 数据状态已上移到 <AppDataProvider>，与手机端共用同一套请求与缓存逻辑，
+ * 这里只负责桌面布局、视图切换与新手引导。
+ *
+ * 手机端请见 src/layouts/MobileShell.jsx。
  */
 function MainLayout() {
   const navigate = useNavigate();
-  const [events, setEvents] = React.useState([]);
-  const [selectedDate, setSelectedDate] = React.useState(new Date());
-  const [messages, setMessages] = React.useState([]);
+
+  const {
+    events, contacts, heatmap, messages, selectedDate, username,
+    setMessages, setSelectedDate, setEvents,
+    refreshEvents, refreshContacts, refreshHeatmap, refreshTodayEvents,
+  } = useAppData();
+
   const [viewMode, setViewMode] = React.useState('month');
   const [workspaceMode, setWorkspaceMode] = React.useState('calendar');
-  const [contacts, setContacts] = React.useState([]);
-  const [heatmap, setHeatmap] = React.useState([]);
   const [selectedContact, setSelectedContact] = React.useState(null);
   const [isTourOpen, setIsTourOpen] = React.useState(false);
 
-  // Tour refs
   const calendarRef = React.useRef(null);
   const micRef = React.useRef(null);
 
-  const username = localStorage.getItem('username') || '用户';
-
-  // Tour auto-trigger on first visit
+  // 首次进入时自动展示新手引导
   React.useEffect(() => {
     const seen = localStorage.getItem('has_seen_tour') === '1';
     if (!seen) setTimeout(() => setIsTourOpen(true), 800);
   }, []);
 
-  const handleVoiceResult = (result) => {
-    const intent = result.intent;
-    const userMsg = { id: Date.now(), type: 'user', text: result.transcript };
-    const assistantMsg = {
-      id: Date.now() + 1,
-      type: 'assistant',
-      text: result.message,
-      needsConfirm: result.needsConfirm || false,
-      confirmType: result.needsConfirm ? (intent?.intent === 'modify' ? 'modify' : 'delete') : undefined,
-      events: result.events || [],
-      modifyPayload: intent?.intent === 'modify' ? intent : null,
-      needsContactDisambiguation: result.needsContactDisambiguation || false,
-      contactCandidates: result.contactCandidates || [],
-      pendingIntent: result.pendingIntent || null,
-      contact: result.contact || null,
-    };
-    setMessages((prev) => [...prev, userMsg, assistantMsg]);
-
-    if (!intent || intent.intent === 'unknown') return;
-
-    // Immediately add events for instant UI feedback
-    if (intent.intent === 'add' && intent.events?.length > 0) {
-      const sourceEvents = result.events?.length ? result.events : intent.events;
-      const addedEvents = sourceEvents.map((ev) => ({
-        id: ev.id || result.eventIds?.shift?.() || Date.now() + Math.random(),
-        title: ev.title,
-        start_time: ev.start_time || new Date(ev.startTime?.replace(' ', 'T') || Date.now()).toISOString(),
-        end_time: ev.end_time || (ev.endTime ? new Date(ev.endTime.replace(' ', 'T')).toISOString() : null),
-        reminder: ev.reminder || ev.reminderMinutes || 10,
-        contact_id: ev.contact_id || result.contact?.id || null,
-        contact_name: ev.contact_name || result.contact?.name || null,
-        event_type: ev.event_type || intent.eventType || 'general',
-        mail_status: ev.mail_status || (result.contact ? 'draft' : 'none'),
-      }));
-      console.log('[Voice] Adding events to calendar:', addedEvents);
-      setEvents((prev) => [...prev, ...addedEvents]);
-      setTimeout(() => refreshEvents(), 1000);
-      setTimeout(() => refreshHeatmap(), 1000);
-    }
-
-    if (intent.intent === 'delete' && result.deleted) {
-      const deletedIds = result.events?.map(e => e.id) || [];
-      setEvents((prev) => prev.filter(e => !deletedIds.includes(e.id)));
-      setTimeout(() => refreshEvents(), 500);
-    }
-
-    if (intent.intent === 'modify' && result.modified) {
-      const modEvt = result.events?.[0];
-      if (modEvt) {
-        setEvents((prev) => prev.map(e => e.id === modEvt.id ? { ...e, ...modEvt } : e));
-        setTimeout(() => refreshEvents(), 500);
-      }
-    }
-
-    if (intent.intent === 'query' && result.queryDate) {
-      // Auto-jump calendar to queried date
-      setSelectedDate(new Date(result.queryDate));
-    }
-  };
-
-  // Direct refresh without useCallback closure issues
-  const refreshEvents = async () => {
-    try {
-      const d = new Date(selectedDate);
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const nextM = String(d.getMonth() + 2).padStart(2, '0');
-      const start = `${y}-${m}-01`;
-      const end = `${y}-${nextM}-01`;
-      console.log('[refreshEvents] Fetching', start, '~', end);
-      const { data } = await api.get('/api/events', { params: { startDate: start, endDate: end } });
-      console.log('[refreshEvents] Got', data.data?.length, 'events');
-      if (data.success) setEvents(data.data);
-    } catch (_) {}
-  };
-
-  const refreshContacts = async () => {
-    try {
-      const { data } = await api.get('/api/contacts');
-      if (data.success) setContacts(data.data || []);
-    } catch (_) {}
-  };
-
-  const refreshHeatmap = async () => {
-    try {
-      const { data } = await api.get('/api/insights/relationship-heatmap');
-      if (data.success) setHeatmap(data.data || []);
-    } catch (_) {}
-  };
-
-  // Load events on mount and when selectedDate changes
-  React.useEffect(() => { refreshEvents(); }, [selectedDate]);
-  React.useEffect(() => { refreshContacts(); refreshHeatmap(); }, []);
+  const handleVoiceResult = React.useCallback((result) => {
+    applyVoiceResult(result, {
+      setMessages,
+      setEvents,
+      refreshEvents,
+      refreshHeatmap,
+      refreshTodayEvents,
+      setSelectedDate,
+    });
+  }, [setMessages, setEvents, refreshEvents, refreshHeatmap, refreshTodayEvents, setSelectedDate]);
 
   const openTimeline = (contact) => {
     setSelectedContact(contact);
@@ -184,7 +106,7 @@ function MainLayout() {
                 onDateChange={setSelectedDate}
                 viewMode={viewMode}
                 onViewModeChange={setViewMode}
-                onRefresh={() => { refreshEvents(); refreshHeatmap(); }}
+                onRefresh={() => { refreshEvents(); refreshHeatmap(); refreshTodayEvents(); }}
                 heatmap={heatmap}
                 onSelectContact={openTimeline}
               />
@@ -208,7 +130,7 @@ function MainLayout() {
             onVoiceResult={handleVoiceResult}
             username={username}
             onLogout={handleLogout}
-            onRefresh={refreshEvents}
+            onRefresh={() => { refreshEvents(); refreshTodayEvents(); }}
             onContactsRefresh={() => { refreshContacts(); refreshHeatmap(); }}
             micRef={micRef}
           />

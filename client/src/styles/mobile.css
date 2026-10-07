@@ -1,0 +1,92 @@
+/* ============================================================
+   TalentMate 移动端基础样式
+   仅在原生 App / 窄屏下生效（由 MobileShell 挂在 .mobile-shell 上）
+   ============================================================ */
+
+:root {
+  /* 安全区变量，兼容旧版 WebView 的 env() 回退 */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --mobile-header-h: 56px;
+  --mobile-nav-h: 60px;
+}
+
+/* 禁止长按选中与橡皮筋回弹，更接近原生 App 手感 */
+.mobile-shell {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  overscroll-behavior-y: none;
+}
+
+.mobile-shell,
+.mobile-scroll {
+  /* 单个滚动容器内的滚动链不外溢到 body */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 固定顶栏：内容顶部内边距 = 顶栏高度 + 状态栏安全区 */
+.mobile-header {
+  padding-top: var(--safe-top);
+  height: calc(var(--mobile-header-h) + var(--safe-top));
+}
+
+/* 内容区：上下都要预留，避免被顶栏与底部导航遮挡。
+   额外再加 80px，为中央的语音悬浮按钮留出空间（它悬浮在底部导航之上），
+   否则贴在内容底部的东西（如月历最后一行）会被 FAB 挡住。 */
+.mobile-content {
+  padding-top: calc(var(--mobile-header-h) + var(--safe-top));
+  padding-bottom: calc(var(--mobile-nav-h) + var(--safe-bottom) + 80px);
+}
+
+/* 底部导航：整体高度含底部安全区（iPhone 手势条 / 安卓手势条） */
+.mobile-bottom-nav {
+  height: calc(var(--mobile-nav-h) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+}
+
+/* 语音悬浮按钮：位于底部导航之上、水平居中 */
+.mobile-voice-fab {
+  bottom: calc(var(--mobile-nav-h) + var(--safe-bottom) + 12px);
+}
+
+/* 月历视图。
+   注意：Ant Design 月历的日期格有约 120px 的固有最小高度（6 行共约 760px），
+   任何手机上都不可能一屏放下整月，所以这里不做高度限制，交给页面正常滚动，
+   行高保持舒适、日期好点。日程页已隐藏语音悬浮按钮，
+   因此不会出现「日期格被固定定位的 FAB 压住」的问题。 */
+.mobile-calendar {
+  padding: 4px;
+}
+
+/* 触控区域不小于 44x44，符合可访问性要求 */
+.mobile-touch {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* 移动端隐藏横向滚动条 */
+.mobile-shell ::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* 移动端下 Ant Design 弹窗靠底部展示，更像原生 Bottom Sheet */
+@media (max-width: 767px) {
+  .mobile-sheet .ant-modal {
+    max-width: 100vw;
+    margin: 0;
+    padding-bottom: 0;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+  }
+
+  .mobile-sheet .ant-modal-content {
+    border-radius: 20px 20px 0 0 !important;
+    padding-bottom: calc(16px + var(--safe-bottom)) !important;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+}
