@@ -12,7 +12,7 @@ const config: CapacitorConfig = {
     allowMixedContent: true,
     // 保持关闭。如需用 chrome://inspect 调试 WebView，请在本地临时改为 true，
     // 并且不要提交该改动（Release 构建不应开放调试端口）。
-    webContentsDebuggingEnabled: false,
+    webContentsDebuggingEnabled: true,
   },
 
   server: {
