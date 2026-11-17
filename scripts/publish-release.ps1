@@ -122,7 +122,9 @@ if ($NotesOnly) {
 
 # --- 4. upload the APK -----------------------------------------------------
 # Rename on upload so the downloaded filename is meaningful.
-$assetName = "TalentMate-1.0.0-release.apk"
+# Derived from -Version: it used to be hardcoded to 1.0.0, so later releases
+# would still upload an asset named after the first release.
+$assetName = "TalentMate-$($Version.TrimStart('v'))-release.apk"
 
 # Drop a previous asset of the same name so re-runs are idempotent.
 $assets = Invoke-Gh -Method GET -Uri "$api/releases/$($release.id)/assets"
