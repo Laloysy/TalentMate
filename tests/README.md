@@ -75,3 +75,56 @@ node tests/cdp.mjs --file some-script.js     # 多行脚本用文件，避免 Po
 | 键盘遮挡输入框 | 需要真机输入法 |
 
 其中**真机录音最关键** —— 语音是本项目的核心链路，模拟器完全无法替代。
+
+---
+
+## 5. 测试报告缺陷的回归验证
+
+针对 `TalentMate_Android_测试报告.pdf` 里记录的 9 个 BUG 与 TC-075，有一套可重复执行的回归：
+
+| 脚本 | 覆盖 | 运行环境 |
+|---|---|---|
+| `fixes-regression.mjs` | BUG-003 / BUG-009 / CSV 去重 / BUG-008 服务端行为 | 任意后端实例（默认本地 `:3011`） |
+| `fixes-ui.mjs` | BUG-001 / 002 / 004 / 005 / 006 / 007 / 008 + TC-075 | 模拟器里运行的 APK（经 CDP 驱动） |
+
+### 5.1 起一个一次性本地后端
+
+不打生产库。用独立端口的 MySQL 实例即可：
+
+```bash
+# 1) 初始化并启动一次性 MySQL（端口 3399，root 空密码）
+mysqld --initialize-insecure --datadir=%LOCALAPPDATA%\dsh-mysql\data \
+       --basedir="C:\Program Files\MySQL\MySQL Server 8.0"
+mysqld --datadir=%LOCALAPPDATA%\dsh-mysql\data --port=3399 --mysqlx=0 --bind-address=127.0.0.1
+
+# 2) 建表
+mysql -h 127.0.0.1 -P 3399 -u root < server/db/init.sql
+
+# 3) 起后端（KEY 用占位值即可，只有语音/邮件相关接口会用到真 key）
+DB_HOST=127.0.0.1 DB_PORT=3399 DB_USER=root DB_PASSWORD= \
+DB_NAME=voice_calendar JWT_SECRET=local-qa PORT=3011 \
+DEEPSEEK_API_KEY=dummy node server/app.js
+```
+
+```bash
+QA_BASE=http://127.0.0.1:3011 node tests/fixes-regression.mjs
+```
+
+### 5.2 界面回归
+
+```bash
+# 构建一个指向本地后端的 debug 包（模拟器用 10.0.2.2 访问宿主机）
+cd client && VITE_API_URL=http://10.0.2.2:3011 npm run build && npx cap sync android
+cd android && gradlew.bat assembleDebug
+
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+adb shell pm grant com.talentmate.app android.permission.POST_NOTIFICATIONS
+adb forward tcp:9444 localabstract:webview_devtools_remote_$(adb shell pidof com.talentmate.app)
+
+CDP_PORT=9444 QA_BASE=http://127.0.0.1:3011 node tests/fixes-ui.mjs
+```
+
+> 测完记得用生产的 `VITE_API_URL` 重新 `npm run build && npx cap sync android`，
+> 否则 `android/app/src/main/assets/public` 里会残留 `10.0.2.2` 的测试地址。
+
+两个脚本都会自建 `qa_*` 前缀的测试账号与夹具数据，不依赖也不影响已有数据。

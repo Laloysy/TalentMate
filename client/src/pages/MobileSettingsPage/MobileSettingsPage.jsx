@@ -1,13 +1,15 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Modal, message, Switch } from 'antd';
+import { App } from '@capacitor/app';
 import MobileHeader from '../../components/MobileHeader';
 import { useAppData } from '../../hooks/useAppData';
 import { isNative } from '../../native/platform';
 import {
   checkNotificationPermission, requestNotificationPermission,
-  syncEventNotifications,
+  syncEventNotifications, cancelAllNotifications,
 } from '../../native/notifications';
+import { isReminderEnabled, setReminderEnabled, clearReminderPreference } from '../../native/reminderPref';
 
 /**
  * MobileSettingsPage — 手机端设置页。
@@ -17,13 +19,27 @@ import {
 function MobileSettingsPage() {
   const navigate = useNavigate();
   const { username, contacts, events, heatmap } = useAppData();
-  const [reminderOn, setReminderOn] = React.useState(false);
+  // BUG-004：开关状态必须来自"用户偏好"，而不是每次都用系统权限重新推导。
+  // 以前关闭开关只清了已排期通知，重进页面时系统权限仍是「已授予」，
+  // 开关就又亮了，用户无法确认关闭是否生效。
+  const [reminderOn, setReminderOn] = React.useState(isReminderEnabled());
   const [permBusy, setPermBusy] = React.useState(false);
+  // 版本号从安装包读取，避免写死在页面里和 build.gradle 对不上（之前固定显示 "1.0 (Debug)"）
+  const [appVersion, setAppVersion] = React.useState('1.0.1');
 
-  // 读取当前通知权限，避免开关状态与实际权限不一致
   React.useEffect(() => {
     if (!isNative) return;
-    checkNotificationPermission().then((p) => setReminderOn(p.granted));
+    App.getInfo()
+      .then((info) => { if (info?.version) setAppVersion(info.version); })
+      .catch(() => { /* 读不到就保留兜底值 */ });
+  }, []);
+
+  // 读取当前通知权限；只有「用户想开启」且「系统已授权」时开关才显示为开启
+  React.useEffect(() => {
+    if (!isNative) return;
+    checkNotificationPermission().then((p) => {
+      setReminderOn(isReminderEnabled() && p.granted);
+    });
   }, []);
 
   /** 打开提醒：此时才申请通知权限（方案 §10.10 要求按需申请） */
@@ -32,6 +48,7 @@ function MobileSettingsPage() {
     try {
       const result = await requestNotificationPermission();
       if (result.granted) {
+        setReminderEnabled(true);
         setReminderOn(true);
         // 授权后立刻按现有日程重建一次提醒（内部会按 7 天窗口过滤）
         await syncEventNotifications(events);
@@ -45,10 +62,12 @@ function MobileSettingsPage() {
   };
 
   const disableReminders = async () => {
-    // 关闭只清空本 App 已排期通知；系统级权限需要用户在系统设置里撤销
-    await syncEventNotifications([]);
+    // 关闭只清空本 App 已排期通知；系统级权限需要用户在系统设置里撤销。
+    // 关键是把「用户不想收到提醒」这个意愿记下来，否则重进页面开关会自己恢复。
+    await cancelAllNotifications();
+    setReminderEnabled(false);
     setReminderOn(false);
-    message.success('已清除已排期的提醒');
+    message.success('已关闭日程提醒，并清除已排期的通知');
   };
 
   const confirmLogout = () => {
@@ -60,6 +79,8 @@ function MobileSettingsPage() {
         localStorage.removeItem('token');
         localStorage.removeItem('username');
         localStorage.removeItem('has_seen_tour');
+        // 提醒偏好属于账号级设置，退出时一并清掉，避免切换账号后串用
+        clearReminderPreference();
         message.success('已退出登录');
         navigate('/login', { replace: true });
       },
@@ -119,7 +140,7 @@ function MobileSettingsPage() {
         <section className="bg-white rounded-2xl p-4 shadow-sm border border-white">
           <h2 className="text-sm font-semibold text-slate-800 mb-3">关于</h2>
           <Row label="应用名称" value="TalentMate 伴贤" />
-          <Row label="版本" value="1.0 (Debug)" />
+          <Row label="版本" value={appVersion} />
           <Row label="包名" value="com.talentmate.app" last />
         </section>
 

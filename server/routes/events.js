@@ -88,6 +88,18 @@ function validateEventFields({ title, startTime, endTime, eventType, mailSubject
   return { valid: true };
 }
 
+// 未填「提前提醒」时的默认分钟数。
+// BUG-003: 0 是合法值（不提醒），不能用 `||` 回落，否则 0 会被存成 10。
+const DEFAULT_REMINDER = 10;
+
+/**
+ * 归一化「提前提醒」：0 必须保留，只有未提供时才用默认值。
+ */
+function normalizeReminder(value, fallback) {
+  if (value === undefined || value === null || value === '') return fallback;
+  return Number(value);
+}
+
 router.post('/', async (req, res) => {
   try {
     const { title, startTime, endTime, reminder, contactId, eventType, mailStatus, mailSubject, mailBodyOverride } = req.body;
@@ -103,6 +115,9 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ success: false, message: validation.message });
     }
 
+    // BUG-003：用户把「提前提醒」设成 0 分钟时，`reminder || 10` 会把 0 当成空值改存 10。
+    const reminderValue = normalizeReminder(reminder, DEFAULT_REMINDER);
+
     const [result] = await pool.query(
       `INSERT INTO events
        (user_id, title, start_time, end_time, reminder, contact_id, event_type, mail_status, mail_subject, mail_body_override)
@@ -112,7 +127,7 @@ router.post('/', async (req, res) => {
         title,
         startTime,
         endTime || null,
-        reminder || 10,
+        reminderValue,
         contactId || null,
         eventType || 'general',
         mailStatus || 'none',
@@ -162,7 +177,7 @@ router.put('/:id', async (req, res) => {
     const newTitle = title !== undefined ? title : ev.title;
     const newStart = startTime !== undefined && startTime !== null ? startTime : ev.start_time;
     const newEnd = endTime !== undefined ? endTime : ev.end_time;
-    const newReminder = reminder !== undefined ? reminder : ev.reminder;
+    const newReminder = normalizeReminder(reminder, ev.reminder);
     const newReminded = reminded !== undefined ? reminded : ev.reminded;
     const newContactId = contactId !== undefined ? (contactId || null) : ev.contact_id;
     const newEventType = eventType !== undefined ? eventType : ev.event_type;

@@ -73,12 +73,55 @@ router.get('/:id/timeline', async (req, res) => {
   }
 });
 
+/**
+ * 查找同一用户下是否已存在该邮箱的联系人（邮箱大小写不敏感）。
+ *
+ * BUG-009：此前没有任何重复校验，姓名与邮箱完全相同的联系人也能源源不断地创建，
+ * 语音候选列表因此出现无法区分的重复对象。
+ * 规则（与测试报告的"联系人数据规则建议"一致）：
+ *   - 同名、不同邮箱 → 允许，属于两个不同的人
+ *   - 邮箱相同（含完全相同）→ 拒绝，属于同一身份
+ *
+ * @param {number} userId 当前用户
+ * @param {string} email 待检查邮箱
+ * @param {number|null} excludeId 更新时排除自身
+ * @returns {Promise<object|null>} 已存在的联系人行
+ */
+async function findDuplicateByEmail(userId, email, excludeId = null) {
+  if (!email) return null;
+  let sql = 'SELECT id, name, email FROM contacts WHERE user_id = ? AND LOWER(email) = LOWER(?)';
+  const params = [userId, email];
+  if (excludeId) {
+    sql += ' AND id <> ?';
+    params.push(excludeId);
+  }
+  sql += ' LIMIT 1';
+  const [rows] = await pool.query(sql, params);
+  return rows.length ? rows[0] : null;
+}
+
+/** 组装重复联系人的提示语，让用户知道撞的是哪一条 */
+function duplicateMessage(existing) {
+  const who = existing.name ? `「${existing.name}」` : '该';
+  return `${who}邮箱已存在于名册中，请勿重复录入`;
+}
+
 router.post('/', async (req, res) => {
   try {
     const payload = normalizeContact(req.body, req.user.id);
     const validation = validateContact(payload);
     if (!validation.valid) {
       return res.status(400).json({ success: false, message: validation.message });
+    }
+    // BUG-009：邮箱重复直接拒绝，避免重复提交与人工重复录入产生同一身份
+    const duplicate = await findDuplicateByEmail(req.user.id, payload.email);
+    if (duplicate) {
+      return res.status(409).json({
+        success: false,
+        code: 'DUPLICATE_CONTACT',
+        message: duplicateMessage(duplicate),
+        data: { id: duplicate.id, name: duplicate.name },
+      });
     }
     const [result] = await pool.query(
       `INSERT INTO contacts
@@ -115,11 +158,17 @@ router.post('/import-csv', async (req, res) => {
 
     let inserted = 0;
     let skipped = 0;
+    let duplicated = 0;
     for (const row of rows) {
       const payload = normalizeContact(row, req.user.id);
       const validation = validateContact(payload);
       if (!validation.valid) {
         skipped += 1;
+        continue;
+      }
+      // 与手动新增使用同一套规则：邮箱已存在就跳过，而不是插入一条重复身份
+      if (await findDuplicateByEmail(req.user.id, payload.email)) {
+        duplicated += 1;
         continue;
       }
       await pool.query(
@@ -141,7 +190,14 @@ router.post('/import-csv', async (req, res) => {
       );
       inserted += 1;
     }
-    res.json({ success: true, message: `已导入 ${inserted} 位联系人${skipped ? `，跳过 ${skipped} 行无效数据` : ''}`, data: { inserted, skipped } });
+    const notes = [];
+    if (skipped) notes.push(`跳过 ${skipped} 行无效数据`);
+    if (duplicated) notes.push(`跳过 ${duplicated} 条已存在联系人`);
+    res.json({
+      success: true,
+      message: `已导入 ${inserted} 位联系人${notes.length ? `，${notes.join('，')}` : ''}`,
+      data: { inserted, skipped, duplicated },
+    });
   } catch (err) {
     console.error('Import contacts error:', err);
     res.status(500).json({ success: false, message: '导入失败' });
@@ -154,6 +210,16 @@ router.put('/:id', async (req, res) => {
     const validation = validateContact(payload);
     if (!validation.valid) {
       return res.status(400).json({ success: false, message: validation.message });
+    }
+    // 更新时排除自身，避免"只改备注但邮箱不变"被自己的旧记录判为重复
+    const duplicate = await findDuplicateByEmail(req.user.id, payload.email, req.params.id);
+    if (duplicate) {
+      return res.status(409).json({
+        success: false,
+        code: 'DUPLICATE_CONTACT',
+        message: duplicateMessage(duplicate),
+        data: { id: duplicate.id, name: duplicate.name },
+      });
     }
     const [result] = await pool.query(
       `UPDATE contacts

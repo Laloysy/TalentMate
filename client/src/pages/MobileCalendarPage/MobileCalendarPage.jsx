@@ -1,10 +1,10 @@
 import React from 'react';
 import {
   DatePicker, Drawer, Form, Input, InputNumber, Select, Button,
-  Modal, message, Popconfirm, Calendar, Segmented, Spin,
+  Modal, message, Calendar, Segmented, Dropdown,
 } from 'antd';
-import { PlusOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { PlusOutlined, LeftOutlined, RightOutlined, MoreOutlined } from '@ant-design/icons';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import 'dayjs/locale/zh-cn';
 import MobileHeader from '../../components/MobileHeader';
@@ -14,6 +14,7 @@ import { isNative } from '../../native/platform';
 import {
   checkNotificationPermission, requestNotificationPermission,
 } from '../../native/notifications';
+import { isReminderEnabled } from '../../native/reminderPref';
 import {
   EVENT_TYPE_OPTIONS, DOT_COLORS, eventTypeMeta,
 } from '../HomePage/eventTypes';
@@ -40,17 +41,25 @@ function MobileCalendarPage() {
   const [daySheetDate, setDaySheetDate] = React.useState(null);
   const [form] = Form.useForm();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // 表单是否有未保存的改动（TC-075：离开前必须确认）
+  const dirtyRef = React.useRef(false);
+  // 同步提交锁。不能用 state —— 双击时两次点击都会在 setState 生效前读到旧值，
+  // 于是同一个 handler 跑两遍（BUG-007 的重复写入就是这个原因）。
+  const submitLockRef = React.useRef(false);
 
   // Android 返回键：先关浮层，再返回上一页
-  useOverlayBackHandler(editorOpen, () => setEditorOpen(false));
+  useOverlayBackHandler(editorOpen, () => requestCloseEditor());
   useOverlayBackHandler(!!daySheetDate, () => setDaySheetDate(null));
 
   const current = dayjs(selectedDate);
 
   // ---- 新增 / 编辑 ----
-  const openAdd = (presetDate) => {
+  const openAdd = React.useCallback((presetDate, presetContactId) => {
     setEditingEvent(null);
     form.resetFields();
+    dirtyRef.current = false;
     const base = presetDate ? dayjs(presetDate) : dayjs();
     form.setFieldsValue({
       startDate: base,
@@ -59,12 +68,24 @@ function MobileCalendarPage() {
       endTime: base.add(1, 'hour').format('HH:mm'),
       reminder: 10,
       eventType: 'general',
+      contactId: presetContactId ? Number(presetContactId) : undefined,
     });
     setEditorOpen(true);
-  };
+  }, [form]);
+
+  // BUG-001：首页「新建日程」与联系人详情「安排沟通」都是导航到 /calendar?action=new，
+  // 但这里此前完全没有读取 query，用户点击后只落到日程页，新建表单不会打开。
+  React.useEffect(() => {
+    if (searchParams.get('action') !== 'new') return;
+    const contactId = searchParams.get('contactId');
+    openAdd(undefined, contactId);
+    setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const openEdit = (ev) => {
     setEditingEvent(ev);
+    dirtyRef.current = false;
     const start = dayjs(ev.start_time);
     const end = ev.end_time ? dayjs(ev.end_time) : null;
     form.setFieldsValue({
@@ -80,7 +101,29 @@ function MobileCalendarPage() {
     setEditorOpen(true);
   };
 
+  /** 关闭编辑器；有未保存改动时先确认（TC-075） */
+  const requestCloseEditor = () => {
+    if (!dirtyRef.current) {
+      setEditorOpen(false);
+      return;
+    }
+    Modal.confirm({
+      title: '放弃未保存的修改？',
+      content: '当前修改还没有保存，离开后将丢失。',
+      okText: '放弃修改',
+      cancelText: '继续编辑',
+      okButtonProps: { danger: true },
+      onOk: () => {
+        dirtyRef.current = false;
+        setEditorOpen(false);
+      },
+    });
+  };
+
   const submit = async () => {
+    // 同步锁：第二次点击直接返回，避免重复创建（BUG-007 同类问题）
+    if (submitLockRef.current) return;
+    submitLockRef.current = true;
     try {
       const v = await form.validateFields();
       setSubmitting(true);
@@ -93,7 +136,8 @@ function MobileCalendarPage() {
         title: v.title,
         startTime: start.format('YYYY-MM-DD HH:mm'),
         endTime: end ? end.format('YYYY-MM-DD HH:mm') : null,
-        reminder: v.reminder ?? 10,
+        // 0 是合法值（不提醒）；只有留空才用默认 10，不能写 `?? 10` 之外的 `|| 10`
+        reminder: (v.reminder === undefined || v.reminder === null || v.reminder === '') ? 10 : v.reminder,
         contactId: v.contactId || null,
         eventType: v.eventType || 'general',
         mailStatus: v.contactId ? 'draft' : 'none',
@@ -106,6 +150,7 @@ function MobileCalendarPage() {
         await api.post('/api/events', payload);
         message.success('已添加');
       }
+      dirtyRef.current = false;
       setEditorOpen(false);
       refreshEvents();
       refreshTodayEvents();
@@ -113,7 +158,7 @@ function MobileCalendarPage() {
 
       // 用户刚设置了「提前提醒」，这正是申请通知权限的合适时机：
       // 意图明确、上下文清楚，而不是一启动就弹系统框（方案 §10.10）。
-      if (isNative && payload.reminder > 0) {
+      if (isNative && payload.reminder > 0 && isReminderEnabled()) {
         const perm = await checkNotificationPermission();
         if (!perm.granted) {
           const asked = await requestNotificationPermission();
@@ -126,6 +171,7 @@ function MobileCalendarPage() {
       if (err?.errorFields) return; // 表单校验失败
       message.error('保存失败，请重试');
     } finally {
+      submitLockRef.current = false;
       setSubmitting(false);
     }
   };
@@ -331,7 +377,9 @@ function MobileCalendarPage() {
                   compact
                   onEdit={() => { setDaySheetDate(null); openEdit(ev); }}
                   onDelete={() => handleDelete(ev.id)}
-                  onMail={() => setMailPreview({ open: true, event: ev, contact: findContact(ev) })}
+                  // 这里原来引用了一个不存在的 setMailPreview/findContact，
+                  // 从月历 Bottom Sheet 点「邮件草稿」会直接抛 ReferenceError。
+                  onMail={() => navigate(`/mail/${ev.id}`)}
                 />
               ))}
             </div>
@@ -354,13 +402,13 @@ function MobileCalendarPage() {
         placement="right"
         width="100%"
         open={editorOpen}
-        onClose={() => setEditorOpen(false)}
+        onClose={requestCloseEditor}
         closable={false}
         styles={{ body: { padding: 0 } }}
       >
         <MobileHeader
           title={editingEvent ? '编辑关怀安排' : '添加关怀安排'}
-          onBack={() => setEditorOpen(false)}
+          onBack={requestCloseEditor}
           right={(
             <button
               type="button"
@@ -375,7 +423,12 @@ function MobileCalendarPage() {
         />
 
         <div className="mobile-content px-4">
-          <Form form={form} layout="vertical" className="pt-2">
+          <Form
+            form={form}
+            layout="vertical"
+            className="pt-2"
+            onValuesChange={() => { dirtyRef.current = true; }}
+          >
             <Form.Item name="title" label="事项标题" rules={[{ required: true, message: '请输入标题' }]}>
               <Input placeholder="例如：和张伟1对1" size="large" />
             </Form.Item>
@@ -427,35 +480,37 @@ function MobileCalendarPage() {
 }
 
 /**
- * 时间选择：使用 DatePicker 的 time 选择器。
- * 不依赖 dayjs 的 customParseFormat 插件（项目未安装），
- * 表单里存的是 "HH:mm" 字符串，提交时再与日期拼接。
+ * 时间选择：改用原生 <input type="time">。
+ *
+ * BUG-005：原来用 antd 的 DatePicker（picker="time"）在 Drawer 里弹出滚轮，
+ * Android WebView 中小时/分钟两列无法上下滑动，表现为"点开就卡死"，
+ * 直接阻断关怀安排的创建与编辑。
+ * 原生时间控件交给系统弹窗渲染，滚动由系统保证，不再受 WebView 触摸/滚动容器影响。
+ * 表单里存的仍是 "HH:mm" 字符串，提交拼接口径不变。
  */
 function TimeField({ value, onChange }) {
   return (
-    <DatePicker
-      picker="time"
-      format="HH:mm"
-      minuteStep={5}
-      className="!w-full"
-      size="large"
-      inputReadOnly
-      value={value ? dayjs(`2000-01-01 ${value}`, 'YYYY-MM-DD HH:mm') : null}
-      onChange={(d) => onChange?.(d ? d.format('HH:mm') : null)}
+    <input
+      type="time"
+      step={300}
+      value={value || ''}
+      onChange={(e) => onChange?.(e.target.value || null)}
+      className="w-full h-10 rounded-lg border border-[#d9d9d9] bg-white px-3 text-sm
+        text-slate-800 leading-tight box-border
+        focus:border-[#1677FF] focus:outline-none"
     />
   );
 }
 
 /** 日程卡片：编辑/删除/邮件都做成常显按钮，不依赖 hover */
 function EventCard({ event, onEdit, onDelete, onMail, compact }) {
-  const [menuOpen, setMenuOpen] = React.useState(false);
   const meta = eventTypeMeta(event.event_type);
   const start = dayjs(event.start_time).format('HH:mm');
   const end = event.end_time ? dayjs(event.end_time).format('HH:mm') : null;
 
   return (
     <div
-      className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden"
+      className="bg-white rounded-xl border border-slate-100 shadow-sm"
       style={{ borderLeft: `4px solid ${meta.color}` }}
     >
       <div className="p-3">
@@ -489,60 +544,51 @@ function EventCard({ event, onEdit, onDelete, onMail, compact }) {
             )}
           </div>
 
-          {/* 常显的操作菜单，不依赖 hover */}
-          <div className="relative shrink-0">
+          {/*
+            常显的操作菜单，不依赖 hover。
+            BUG-002：原来用 absolute 定位 + 卡片 overflow-hidden，菜单被裁在卡片里，
+            「邮件草稿」入口点不到（TC-093 因此 BLOCKED）。
+            改用 antd Dropdown（默认挂到 body 的 portal，会自动避让屏幕边缘），
+            不再受任何父容器的 overflow 影响。
+          */}
+          <Dropdown
+            trigger={['click']}
+            placement="bottomRight"
+            menu={{
+              items: [
+                { key: 'edit', label: '编辑' },
+                ...(event.contact_id ? [{ key: 'mail', label: '邮件草稿' }] : []),
+                { type: 'divider' },
+                { key: 'delete', label: '删除', danger: true },
+              ],
+              onClick: ({ key, domEvent }) => {
+                domEvent?.stopPropagation?.();
+                if (key === 'edit') onEdit();
+                else if (key === 'mail') onMail();
+                else if (key === 'delete') {
+                  Modal.confirm({
+                    title: '确认删除？',
+                    okText: '删除',
+                    cancelText: '取消',
+                    okButtonProps: { danger: true },
+                    onOk: onDelete,
+                  });
+                }
+              },
+            }}
+          >
             <button
               type="button"
-              onClick={() => setMenuOpen((v) => !v)}
               aria-label="更多操作"
-              className="mobile-touch w-11 h-11 flex items-center justify-center rounded-full
+              className="shrink-0 mobile-touch w-11 h-11 flex items-center justify-center rounded-full
                 text-slate-400 border-0 bg-transparent cursor-pointer active:bg-slate-100"
             >
-              ⋮
+              <MoreOutlined />
             </button>
-            {menuOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-                <div className="absolute right-0 top-11 z-50 w-32 bg-white rounded-xl shadow-lg
-                  border border-slate-100 py-1 overflow-hidden">
-                  <MenuItem onClick={() => { setMenuOpen(false); onEdit(); }}>编辑</MenuItem>
-                  {event.contact_id && (
-                    <MenuItem onClick={() => { setMenuOpen(false); onMail(); }}>邮件草稿</MenuItem>
-                  )}
-                  <Popconfirm
-                    title="确认删除？"
-                    okText="删除"
-                    cancelText="取消"
-                    onConfirm={() => { setMenuOpen(false); onDelete(); }}
-                  >
-                    <button
-                      type="button"
-                      className="w-full text-left px-3 py-2.5 text-sm text-red-500
-                        border-0 bg-transparent cursor-pointer active:bg-red-50"
-                    >
-                      删除
-                    </button>
-                  </Popconfirm>
-                </div>
-              </>
-            )}
-          </div>
+          </Dropdown>
         </div>
       </div>
     </div>
-  );
-}
-
-function MenuItem({ children, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="w-full text-left px-3 py-2.5 text-sm text-slate-700
-        border-0 bg-transparent cursor-pointer active:bg-slate-50"
-    >
-      {children}
-    </button>
   );
 }
 

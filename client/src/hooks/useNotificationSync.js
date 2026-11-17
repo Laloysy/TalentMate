@@ -15,6 +15,7 @@ import { isNative, nativeLog } from '../native/platform';
 import {
   syncEventNotifications, cancelAllNotifications, registerNotificationTapHandler,
 } from '../native/notifications';
+import { isReminderEnabled } from '../native/reminderPref';
 import { registerAppState } from '../native/appLifecycle';
 
 /** 取未来 N 天的日程，用于计算通知 */
@@ -56,6 +57,13 @@ export function useNotificationSync(events) {
       return;
     }
 
+    // BUG-004：用户在设置里关闭提醒后，任何数据变化或回到前台都不应再把通知排上。
+    // 以前这里无条件同步，所以"关闭提醒"撑不过一次页面切换。
+    if (!isReminderEnabled()) {
+      cancelAllNotifications();
+      return;
+    }
+
     let cancelled = false;
     (async () => {
       try {
@@ -79,6 +87,10 @@ export function useNotificationSync(events) {
     registerAppState((isActive) => {
       if (!isActive) return;
       if (!localStorage.getItem('token')) return;
+      if (!isReminderEnabled()) {
+        cancelAllNotifications();
+        return;
+      }
       fetchUpcomingEvents()
         .then((upcoming) => syncEventNotifications(upcoming))
         .catch((err) => nativeLog('resume sync failed', err?.message));

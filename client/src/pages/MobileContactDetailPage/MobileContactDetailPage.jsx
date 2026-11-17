@@ -37,13 +37,15 @@ const TIMELINE_LABEL = {
 function MobileContactDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { contacts, heatmap, refreshContacts, refreshHeatmap } = useAppData();
+  const { contacts, heatmap, refreshContacts, refreshHeatmap, refreshEvents, refreshTodayEvents } = useAppData();
 
   const [timeline, setTimeline] = React.useState(null);
   const [loadingTimeline, setLoadingTimeline] = React.useState(true);
   const [editorOpen, setEditorOpen] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [form] = Form.useForm();
+  // 同步提交锁，避免连续点击重复提交（与名册新增同样的问题）
+  const submitLockRef = React.useRef(false);
 
   // Android 返回键：先关浮层
   useOverlayBackHandler(editorOpen, () => setEditorOpen(false));
@@ -100,6 +102,8 @@ function MobileContactDetailPage() {
   };
 
   const submit = async () => {
+    if (submitLockRef.current) return;
+    submitLockRef.current = true;
     try {
       const v = await form.validateFields();
       setSubmitting(true);
@@ -114,8 +118,9 @@ function MobileContactDetailPage() {
       refreshHeatmap();
     } catch (err) {
       if (err?.errorFields) return;
-      message.error('保存失败，请重试');
+      message.error(err?.response?.data?.message || '保存失败，请重试');
     } finally {
+      submitLockRef.current = false;
       setSubmitting(false);
     }
   };
@@ -126,6 +131,11 @@ function MobileContactDetailPage() {
       message.success('已删除');
       refreshContacts();
       refreshHeatmap();
+      // BUG-008：服务端删除联系人时会把 events.contact_id 置空，
+      // 但前端此前只刷新名册与热力图，日程/首页仍显示旧联系人姓名，
+      // 要等重启 App 才会消失。这里同步刷新日程与今日摘要。
+      refreshEvents();
+      refreshTodayEvents();
       navigate('/contacts', { replace: true });
     } catch {
       message.error('删除失败');
@@ -294,7 +304,16 @@ function MobileContactDetailPage() {
             <Form.Item name="name" label="姓名" rules={[{ required: true, message: '请输入姓名' }]}>
               <Input size="large" />
             </Form.Item>
-            <Form.Item name="email" label="邮箱"><Input size="large" /></Form.Item>
+            <Form.Item
+              name="email"
+              label="邮箱"
+              rules={[
+                { required: true, message: '请输入邮箱' },
+                { type: 'email', message: '邮箱格式不正确' },
+              ]}
+            >
+              <Input size="large" />
+            </Form.Item>
             <Form.Item name="contactType" label="类型">
               <Select options={CONTACT_TYPES} size="large" />
             </Form.Item>

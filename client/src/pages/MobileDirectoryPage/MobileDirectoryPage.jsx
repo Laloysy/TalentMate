@@ -34,6 +34,9 @@ function MobileDirectoryPage() {
   const [csv, setCsv] = React.useState('');
   const [submitting, setSubmitting] = React.useState(false);
   const [form] = Form.useForm();
+  // 同步提交锁：双击时两次点击都会在 setState 生效前进入 handler，
+  // 只用 disabled 属性挡不住，所以再加一个 ref（BUG-007）。
+  const submitLockRef = React.useRef(false);
 
   // Android 返回键：先关浮层
   useOverlayBackHandler(editorOpen, () => setEditorOpen(false));
@@ -76,6 +79,8 @@ function MobileDirectoryPage() {
   }
 
   const submit = async () => {
+    if (submitLockRef.current) return; // 双击 / 连点直接忽略第二次
+    submitLockRef.current = true;
     try {
       const v = await form.validateFields();
       setSubmitting(true);
@@ -90,8 +95,10 @@ function MobileDirectoryPage() {
       refreshHeatmap();
     } catch (err) {
       if (err?.errorFields) return;
-      message.error('保存失败，请重试');
+      // 服务端对重复邮箱返回 409 和明确的提示语，直接透出给用户
+      message.error(err?.response?.data?.message || '保存失败，请重试');
     } finally {
+      submitLockRef.current = false;
       setSubmitting(false);
     }
   };
@@ -268,7 +275,16 @@ function MobileDirectoryPage() {
             <Form.Item name="name" label="姓名" rules={[{ required: true, message: '请输入姓名' }]}>
               <Input size="large" placeholder="例如：张伟" />
             </Form.Item>
-            <Form.Item name="email" label="邮箱">
+            {/* BUG-006：邮箱是服务端必填项，这里必须给出必填标识与格式校验，
+                否则用户会误判邮箱可选，提交后才被服务端拒绝 */}
+            <Form.Item
+              name="email"
+              label="邮箱"
+              rules={[
+                { required: true, message: '请输入邮箱' },
+                { type: 'email', message: '邮箱格式不正确' },
+              ]}
+            >
               <Input size="large" placeholder="name@example.com" />
             </Form.Item>
             <Form.Item name="contactType" label="类型">
