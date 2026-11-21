@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { message, Tour, Segmented } from 'antd';
+import { message, Tour, Segmented, Modal } from 'antd';
 import CalendarPanel from './CalendarPanel';
 import ChatPanel from './ChatPanel';
 import DirectoryPanel from './DirectoryPanel';
@@ -8,6 +8,7 @@ import TimelinePanel from './TimelinePanel';
 import api from '../../services/api';
 import { useAppData } from '../../hooks/useAppData';
 import { applyVoiceResult } from '../../hooks/useVoiceAssistant';
+import { clearReminderPreference } from '../../native/reminderPref';
 
 /**
  * MainLayout — 桌面端双栏工作台（浏览器访问时使用）。
@@ -57,10 +58,22 @@ function MainLayout() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('username');
-    message.success('已退出登录');
-    navigate('/login');
+    // 与手机端一致：先二次确认，避免误触退出
+    Modal.confirm({
+      title: '确认退出登录？',
+      okText: '退出',
+      cancelText: '取消',
+      onOk: () => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('username');
+        // 这两个是账号级状态，不清会让下一个登录的人在同一个浏览器里
+        // 跳过新手引导、沿用上一个人的提醒偏好
+        localStorage.removeItem('has_seen_tour');
+        clearReminderPreference();
+        message.success('已退出登录');
+        navigate('/login');
+      },
+    });
   };
 
   return (
