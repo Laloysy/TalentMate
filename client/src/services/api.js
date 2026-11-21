@@ -2,14 +2,28 @@
  * Axios instance with base URL and JWT interceptor.
  * All API requests must go through this instance.
  *
- * 所有调用方已自带 `/api` 前缀，因此 VITE_API_URL 只写主机名，
- * 例如 http://49.232.160.212，最终请求为 http://49.232.160.212/api/events。
+ * 所有调用方已自带 `/api` 前缀，接口根地址见下面的 baseURL 说明。
  */
 import axios from 'axios';
 import { Capacitor } from '@capacitor/core';
 
-// 生产构建由 .env.production 注入；开发环境留空以走 Vite 代理。
-const baseURL = import.meta.env.VITE_API_URL || '';
+/**
+ * 接口根地址按运行环境区分：
+ *
+ * - 原生 App：Capacitor 的页面源是 `https://localhost`，相对路径会打到设备本机，
+ *   必须用绝对地址。WebView 已开启 allowMixedContent，HTTP 后端可用。
+ * - 网页：一律走**同源相对路径**。页面是 HTTPS 时接口自动是 HTTPS，
+ *   不会被浏览器判为混合内容（此前的报错就是 HTTPS 页面请求 http://49.232.160.212）。
+ *   nginx 与 Node 服务同源反代 /api，所以相对路径在 IP 和域名下都成立。
+ *
+ * VITE_API_URL 仅用于原生包；网页构建即使带着它也会被忽略。
+ */
+const NATIVE_FALLBACK = 'http://49.232.160.212';
+const configured = import.meta.env.VITE_API_URL || '';
+
+const baseURL = Capacitor.isNativePlatform()
+  ? (configured || NATIVE_FALLBACK)
+  : '';
 
 const api = axios.create({
   baseURL,
