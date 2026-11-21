@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button, Form, Input, Modal, Select, DatePicker, message, Empty, Tag } from 'antd';
+import { Button, Form, Input, InputNumber, Modal, Select, DatePicker, message, Empty, Tag } from 'antd';
 import { PlusOutlined, UploadOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import api from '../../services/api';
@@ -63,6 +63,8 @@ function DirectoryPanel({ contacts = [], heatmap = [], onRefresh, onSelect }) {
       onboardDate: contact.onboard_date ? dayjs(contact.onboard_date) : null,
       avatarColor: contact.avatar_color,
       careLevel: contact.care_level || 'normal',
+      careWarnDays: contact.care_warn_days ?? null,
+      careDangerDays: contact.care_danger_days ?? null,
       notes: contact.notes,
     });
     setModalOpen(true);
@@ -227,6 +229,14 @@ function DirectoryPanel({ contacts = [], heatmap = [], onRefresh, onSelect }) {
           >
             <Select options={CARE_LEVEL_OPTIONS} />
           </Form.Item>
+          <div className="grid grid-cols-2 gap-3">
+            <Form.Item name="careWarnDays" label="需关注天数" extra="留空用预设">
+              <InputNumber min={1} max={365} className="!w-full" placeholder="如 21" />
+            </Form.Item>
+            <Form.Item name="careDangerDays" label="高优先级天数" extra="需大于上一个">
+              <InputNumber min={1} max={365} className="!w-full" placeholder="如 35" />
+            </Form.Item>
+          </div>
           <Form.Item name="department" label="部门"><Input /></Form.Item>
           <Form.Item name="role" label="岗位 / 职位"><Input /></Form.Item>
           <Form.Item name="birthday" label="生日"><DatePicker className="!w-full" /></Form.Item>

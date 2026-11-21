@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Drawer, Form, Input, Select, DatePicker, Spin, message, Popconfirm, Tag,
+  Drawer, Form, Input, InputNumber, Select, DatePicker, Spin, message, Popconfirm, Tag,
 } from 'antd';
 import dayjs from 'dayjs';
 import MobileHeader from '../../components/MobileHeader';
@@ -97,6 +97,8 @@ function MobileContactDetailPage() {
       onboardDate: contact.onboard_date ? dayjs(contact.onboard_date) : null,
       avatarColor: contact.avatar_color,
       careLevel: contact.care_level || 'normal',
+      careWarnDays: contact.care_warn_days ?? null,
+      careDangerDays: contact.care_danger_days ?? null,
       notes: contact.notes,
     });
     setEditorOpen(true);
@@ -331,6 +333,14 @@ function MobileContactDetailPage() {
             >
               <Select options={CARE_LEVEL_OPTIONS} size="large" />
             </Form.Item>
+            <div className="grid grid-cols-2 gap-3">
+              <Form.Item name="careWarnDays" label="需关注天数" extra="留空用预设">
+                <InputNumber min={1} max={365} className="!w-full" size="large" placeholder="如 21" />
+              </Form.Item>
+              <Form.Item name="careDangerDays" label="高优先级天数" extra="需大于上一个">
+                <InputNumber min={1} max={365} className="!w-full" size="large" placeholder="如 35" />
+              </Form.Item>
+            </div>
             <Form.Item name="department" label="部门"><Input size="large" /></Form.Item>
             <Form.Item name="role" label="岗位"><Input size="large" /></Form.Item>
             <Form.Item name="birthday" label="生日">

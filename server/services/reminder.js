@@ -51,48 +51,58 @@ async function checkAndSendReminders() {
     console.log(`[Reminder] Scan found ${events.length} event(s)`);
 
     for (const event of events) {
-      if (event.contact_email) {
-        console.log('[Reminder] Sending care email for:', event.title, 'to', event.contact_email);
-        const preview = renderCareEmail({
-          contact: {
-            name: event.contact_name,
-            email: event.contact_email,
-            department: event.contact_department,
-            role: event.contact_role,
-          },
-          event: {
-            title: event.title,
-            start_time: formatDateTimeStr(event.start_time),
-            event_type: event.event_type,
-            mail_subject: event.mail_subject,
-            mail_body_override: event.mail_body_override,
-          },
-        });
-        await sendHtmlEmail(event.contact_email, preview.subject, preview.body, preview.html);
-        await pool.query('UPDATE events SET mail_status = ? WHERE id = ?', ['sent', event.id]);
-        await logInteraction(pool, {
-          userId: event.user_id,
-          contactId: event.contact_id,
-          eventId: event.id,
-          actionType: 'mail_sent',
-          title: preview.subject,
-          detail: `关怀邮件已发送至 ${event.contact_email}`,
-        });
-      } else {
-        // Send email reminder to the owner when no target contact is bound.
-        console.log('[Reminder] Sending email for:', event.title, 'to', event.email);
-        await sendReminderEmail(
-          event.email,
-          event.title,
-          formatDateTimeStr(event.start_time),
-          event.reminder
-        );
+      // 每个事件单独兜住异常。
+      // 以前发送失败会直接冒泡到外层 catch，导致两个问题：
+      //   1) 该事件永远不写 reminded=1，每 15 秒重发同一封退信邮件（实测每小时 240 次、480 条错误日志）
+      //   2) 同一批里后面的事件全部被跳过
+      try {
+        if (event.contact_email) {
+          console.log('[Reminder] Sending care email for:', event.title, 'to', event.contact_email);
+          const preview = renderCareEmail({
+            contact: {
+              name: event.contact_name,
+              email: event.contact_email,
+              department: event.contact_department,
+              role: event.contact_role,
+            },
+            event: {
+              title: event.title,
+              start_time: formatDateTimeStr(event.start_time),
+              event_type: event.event_type,
+              mail_subject: event.mail_subject,
+              mail_body_override: event.mail_body_override,
+            },
+          });
+          await sendHtmlEmail(event.contact_email, preview.subject, preview.body, preview.html);
+          await pool.query('UPDATE events SET mail_status = ? WHERE id = ?', ['sent', event.id]);
+          await logInteraction(pool, {
+            userId: event.user_id,
+            contactId: event.contact_id,
+            eventId: event.id,
+            actionType: 'mail_sent',
+            title: preview.subject,
+            detail: `关怀邮件已发送至 ${event.contact_email}`,
+          });
+        } else {
+          // Send email reminder to the owner when no target contact is bound.
+          console.log('[Reminder] Sending email for:', event.title, 'to', event.email);
+          await sendReminderEmail(
+            event.email,
+            event.title,
+            formatDateTimeStr(event.start_time),
+            event.reminder
+          );
+        }
+
+        // Mark as reminded
+        await pool.query('UPDATE events SET reminded = 1 WHERE id = ?', [event.id]);
+        console.log(`[Reminder] Processed event #${event.id}: "${event.title}" for user ${event.username}`);
+      } catch (err) {
+        console.error(`[Reminder] 事件 #${event.id} 提醒失败（不再重试）：${err.message}`);
+        // 失败同样标记，避免无限重发；具体原因留在日志里
+        await pool.query('UPDATE events SET reminded = 1 WHERE id = ?', [event.id])
+          .catch((e2) => console.error('[Reminder] 标记失败状态时出错:', e2.message));
       }
-
-      // Mark as reminded
-      await pool.query('UPDATE events SET reminded = 1 WHERE id = ?', [event.id]);
-
-      console.log(`[Reminder] Processed event #${event.id}: "${event.title}" for user ${event.username}`);
     }
   } catch (err) {
     console.error('[Reminder] Error checking reminders:', err);

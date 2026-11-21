@@ -57,6 +57,9 @@ CREATE TABLE IF NOT EXISTS contacts (
   avatar_color  VARCHAR(20)  DEFAULT '#1677FF',
   -- 人工指定的关注等级，参与热度阈值加权：high 更早提醒，low 更晚提醒
   care_level    VARCHAR(20)  DEFAULT 'normal',
+  -- 自定义提醒阈值（天）。为空表示沿用 care_level 推导出来的预设值
+  care_warn_days   INT DEFAULT NULL,
+  care_danger_days INT DEFAULT NULL,
   notes         TEXT         DEFAULT NULL,
   created_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
   updated_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

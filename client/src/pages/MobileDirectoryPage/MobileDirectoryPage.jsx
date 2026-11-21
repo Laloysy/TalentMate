@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Drawer, Form, Input, Select, DatePicker, Button, message, Popconfirm, Modal,
+  Drawer, Form, Input, InputNumber, Select, DatePicker, Button, message, Popconfirm, Modal,
 } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -303,6 +303,15 @@ function MobileDirectoryPage() {
             >
               <Select options={CARE_LEVEL_OPTIONS} size="large" />
             </Form.Item>
+            {/* 自定义阈值：留空则用上面的等级预设 */}
+            <div className="grid grid-cols-2 gap-3">
+              <Form.Item name="careWarnDays" label="需关注天数" extra="留空用预设">
+                <InputNumber min={1} max={365} className="!w-full" size="large" placeholder="如 21" />
+              </Form.Item>
+              <Form.Item name="careDangerDays" label="高优先级天数" extra="需大于上一个">
+                <InputNumber min={1} max={365} className="!w-full" size="large" placeholder="如 35" />
+              </Form.Item>
+            </div>
             <Form.Item name="department" label="部门">
               <Input size="large" />
             </Form.Item>

@@ -16,15 +16,26 @@ router.use(authMiddleware);
 const CARE_WEIGHT = { high: 0.6, normal: 1, low: 1.5 };
 const CARE_LABEL = { high: '重点联系人', normal: '', low: '低优先' };
 
-/** 计算某个联系人的提醒阈值 */
+/** 计算某个联系人的提醒阈值；自定义值优先于等级预设 */
 function thresholdsFor(contact) {
   const isCandidate = contact.contact_type === 'candidate';
   const weight = CARE_WEIGHT[contact.care_level] ?? 1;
   const baseWarn = isCandidate ? 7 : 30;
   const baseDanger = isCandidate ? 14 : 45;
-  const warnAt = Math.max(1, Math.round(baseWarn * weight));
-  const dangerAt = Math.max(warnAt + 1, Math.round(baseDanger * weight));
-  return { isCandidate, warnAt, dangerAt, weight };
+
+  // 预设：按等级缩放
+  let warnAt = Math.max(1, Math.round(baseWarn * weight));
+  let dangerAt = Math.max(warnAt + 1, Math.round(baseDanger * weight));
+
+  // 自定义阈值（天）覆盖预设；只填一项时另一项仍用预设，但保证 danger > warn
+  const cw = Number(contact.care_warn_days);
+  const cd = Number(contact.care_danger_days);
+  const customWarn = Number.isInteger(cw) && cw > 0;
+  const customDanger = Number.isInteger(cd) && cd > 0;
+  if (customWarn) warnAt = cw;
+  if (customDanger) dangerAt = Math.max(warnAt + 1, cd);
+
+  return { isCandidate, warnAt, dangerAt, weight, custom: customWarn || customDanger };
 }
 
 router.get('/relationship-heatmap', async (req, res) => {
@@ -51,7 +62,7 @@ router.get('/relationship-heatmap', async (req, res) => {
       const last = lastRaw ? new Date(String(lastRaw).replace(' ', 'T')) : null;
       const next = contact.next_event_at ? new Date(String(contact.next_event_at).replace(' ', 'T')) : null;
       const days = last ? Math.floor((now - last) / 86400000) : null;
-      const { isCandidate, warnAt, dangerAt } = thresholdsFor(contact);
+      const { isCandidate, warnAt, dangerAt, custom } = thresholdsFor(contact);
       let status = 'healthy';
       if (next) status = 'scheduled';
       else if (days === null) status = 'new';
@@ -67,6 +78,7 @@ router.get('/relationship-heatmap', async (req, res) => {
         // 把实际生效的阈值一并返回，便于前端解释「为什么是需关注」
         warn_at: warnAt,
         danger_at: dangerAt,
+        custom_thresholds: custom,
         reason: buildReason(contact, status, days, isCandidate, next),
       };
     });

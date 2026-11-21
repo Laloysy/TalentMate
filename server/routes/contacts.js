@@ -25,6 +25,16 @@ function normalizeCareLevel(value) {
   return v;
 }
 
+/**
+ * 自定义阈值（天）。留空表示沿用等级推导出来的预设值。
+ * 只接受正整数，其他一律当"未设置"，交给 validateContact 拦非法值。
+ */
+function normalizeDays(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const n = Number(value);
+  return Number.isInteger(n) ? n : NaN;
+}
+
 router.get('/', async (req, res) => {
   try {
     const { keyword, type } = req.query;
@@ -143,8 +153,8 @@ router.post('/', async (req, res) => {
     }
     const [result] = await pool.query(
       `INSERT INTO contacts
-       (user_id, name, email, contact_type, department, role, birthday, onboard_date, avatar_color, care_level, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (user_id, name, email, contact_type, department, role, birthday, onboard_date, avatar_color, care_level, care_warn_days, care_danger_days, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         payload.user_id,
         payload.name,
@@ -156,6 +166,8 @@ router.post('/', async (req, res) => {
         payload.onboard_date,
         payload.avatar_color,
         payload.care_level,
+        payload.care_warn_days,
+        payload.care_danger_days,
         payload.notes,
       ]
     );
@@ -192,8 +204,8 @@ router.post('/import-csv', async (req, res) => {
       }
       await pool.query(
         `INSERT INTO contacts
-         (user_id, name, email, contact_type, department, role, birthday, onboard_date, avatar_color, care_level, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (user_id, name, email, contact_type, department, role, birthday, onboard_date, avatar_color, care_level, care_warn_days, care_danger_days, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           payload.user_id,
           payload.name,
@@ -205,6 +217,8 @@ router.post('/import-csv', async (req, res) => {
           payload.onboard_date,
           payload.avatar_color,
           payload.care_level,
+          payload.care_warn_days,
+          payload.care_danger_days,
           payload.notes,
         ]
       );
@@ -244,7 +258,8 @@ router.put('/:id', async (req, res) => {
     const [result] = await pool.query(
       `UPDATE contacts
        SET name = ?, email = ?, contact_type = ?, department = ?, role = ?,
-           birthday = ?, onboard_date = ?, avatar_color = ?, care_level = ?, notes = ?
+           birthday = ?, onboard_date = ?, avatar_color = ?, care_level = ?,
+           care_warn_days = ?, care_danger_days = ?, notes = ?
        WHERE id = ? AND user_id = ?`,
       [
         payload.name,
@@ -256,6 +271,8 @@ router.put('/:id', async (req, res) => {
         payload.onboard_date,
         payload.avatar_color,
         payload.care_level,
+        payload.care_warn_days,
+        payload.care_danger_days,
         payload.notes,
         req.params.id,
         req.user.id,
@@ -301,6 +318,8 @@ function normalizeContact(body, userId) {
     onboard_date: clean(body.onboardDate || body.onboard_date || body['入职时间']) || null,
     avatar_color: clean(body.avatarColor || body.avatar_color) || COLORS[Math.floor(Math.random() * COLORS.length)],
     care_level: normalizeCareLevel(body.careLevel || body.care_level || body['关注等级']),
+    care_warn_days: normalizeDays(body.careWarnDays ?? body.care_warn_days ?? body['需关注天数']),
+    care_danger_days: normalizeDays(body.careDangerDays ?? body.care_danger_days ?? body['高优先级天数']),
     notes: clean(body.notes || body['备注']) || null,
   };
 }
@@ -324,6 +343,19 @@ function validateContact(payload) {
   if (!CARE_LEVELS.includes(payload.care_level)) {
     return { valid: false, message: '关注等级必须是「重点 / 普通 / 低」之一' };
   }
+
+  // 自定义阈值：可只填一个，但填了就必须是 1–365 的整数，且「高优先级」要大于「需关注」
+  const w = payload.care_warn_days;
+  const d = payload.care_danger_days;
+  for (const [v, label] of [[w, '需关注天数'], [d, '高优先级天数']]) {
+    if (v !== null && (!Number.isInteger(v) || v < 1 || v > 365)) {
+      return { valid: false, message: `${label}必须是 1–365 的整数，留空表示用预设值` };
+    }
+  }
+  if (w !== null && d !== null && d <= w) {
+    return { valid: false, message: '「高优先级天数」必须大于「需关注天数」' };
+  }
+
   return { valid: true };
 }
 
