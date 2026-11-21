@@ -6,7 +6,7 @@ import {
 import dayjs from 'dayjs';
 import MobileHeader from '../../components/MobileHeader';
 import { useAppData } from '../../hooks/useAppData';
-import { heatmapLabel, heatmapStyle } from '../HomePage/heatmap';
+import { heatmapLabel, heatmapStyle, CARE_LEVEL_OPTIONS, careLevelLabel, careLevelStyle } from '../HomePage/heatmap';
 import { useOverlayBackHandler } from '../../native/overlays';
 import api from '../../services/api';
 
@@ -96,6 +96,7 @@ function MobileContactDetailPage() {
       birthday: contact.birthday ? dayjs(contact.birthday) : null,
       onboardDate: contact.onboard_date ? dayjs(contact.onboard_date) : null,
       avatarColor: contact.avatar_color,
+      careLevel: contact.care_level || 'normal',
       notes: contact.notes,
     });
     setEditorOpen(true);
@@ -191,11 +192,16 @@ function MobileContactDetailPage() {
               {(contact.name || '?').slice(-1)}
             </span>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-lg font-semibold text-slate-900 truncate">{contact.name}</h2>
                 <span className="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] shrink-0">
                   {contact.contact_type === 'candidate' ? '候选人' : '员工'}
                 </span>
+                {contact.care_level === 'high' && (
+                  <span className={`px-1.5 py-0.5 rounded-full border text-[10px] shrink-0 ${careLevelStyle('high')}`}>
+                    {careLevelLabel('high')}
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-400 mt-0.5 truncate">
                 {[contact.department, contact.role].filter(Boolean).join(' · ') || '未填写部门与岗位'}
@@ -316,6 +322,14 @@ function MobileContactDetailPage() {
             </Form.Item>
             <Form.Item name="contactType" label="类型">
               <Select options={CONTACT_TYPES} size="large" />
+            </Form.Item>
+            {/* 人工关注等级：决定该联系人多早进入「需关注 / 高优先级」 */}
+            <Form.Item
+              name="careLevel"
+              label="关注等级"
+              extra="重点联系人阈值更低：同样天数会比普通员工更早进入需关注"
+            >
+              <Select options={CARE_LEVEL_OPTIONS} size="large" />
             </Form.Item>
             <Form.Item name="department" label="部门"><Input size="large" /></Form.Item>
             <Form.Item name="role" label="岗位"><Input size="large" /></Form.Item>

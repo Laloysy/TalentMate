@@ -55,6 +55,8 @@ CREATE TABLE IF NOT EXISTS contacts (
   birthday      DATE         DEFAULT NULL,
   onboard_date  DATE         DEFAULT NULL,
   avatar_color  VARCHAR(20)  DEFAULT '#1677FF',
+  -- 人工指定的关注等级，参与热度阈值加权：high 更早提醒，low 更晚提醒
+  care_level    VARCHAR(20)  DEFAULT 'normal',
   notes         TEXT         DEFAULT NULL,
   created_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
   updated_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

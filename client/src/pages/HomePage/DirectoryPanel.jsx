@@ -3,6 +3,7 @@ import { Button, Form, Input, Modal, Select, DatePicker, message, Empty, Tag } f
 import { PlusOutlined, UploadOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import api from '../../services/api';
+import { CARE_LEVEL_OPTIONS, careLevelLabel, careLevelStyle } from './heatmap';
 
 const STATUS_META = {
   scheduled: { label: '已安排', className: 'bg-blue-50 text-blue-700 border-blue-100' },
@@ -46,7 +47,7 @@ function DirectoryPanel({ contacts = [], heatmap = [], onRefresh, onSelect }) {
   const openAdd = () => {
     setEditing(null);
     form.resetFields();
-    form.setFieldsValue({ contactType: 'employee', avatarColor: '#1677FF' });
+    form.setFieldsValue({ contactType: 'employee', avatarColor: '#1677FF', careLevel: 'normal' });
     setModalOpen(true);
   };
 
@@ -61,6 +62,7 @@ function DirectoryPanel({ contacts = [], heatmap = [], onRefresh, onSelect }) {
       birthday: contact.birthday ? dayjs(contact.birthday) : null,
       onboardDate: contact.onboard_date ? dayjs(contact.onboard_date) : null,
       avatarColor: contact.avatar_color,
+      careLevel: contact.care_level || 'normal',
       notes: contact.notes,
     });
     setModalOpen(true);
@@ -187,6 +189,11 @@ function DirectoryPanel({ contacts = [], heatmap = [], onRefresh, onSelect }) {
                     <Tag color={contact.contact_type === 'candidate' ? 'orange' : 'blue'} className="!m-0">
                       {contact.contact_type === 'candidate' ? '候选人' : '员工'}
                     </Tag>
+                    {contact.care_level === 'high' && (
+                      <span className={`px-2 py-0.5 rounded-full border text-[11px] ${careLevelStyle('high')}`}>
+                        {careLevelLabel('high')}
+                      </span>
+                    )}
                     <span className={`px-2 py-0.5 rounded-full border text-[11px] ${meta.className}`}>
                       {meta.label}
                     </span>
@@ -212,6 +219,13 @@ function DirectoryPanel({ contacts = [], heatmap = [], onRefresh, onSelect }) {
           </Form.Item>
           <Form.Item name="contactType" label="类型" rules={[{ required: true, message: '请选择类型' }]}>
             <Select options={[{ value: 'employee', label: '员工' }, { value: 'candidate', label: '候选人' }]} />
+          </Form.Item>
+          <Form.Item
+            name="careLevel"
+            label="关注等级"
+            extra="重点联系人阈值更低：同样天数会比普通员工更早进入「需关注」"
+          >
+            <Select options={CARE_LEVEL_OPTIONS} />
           </Form.Item>
           <Form.Item name="department" label="部门"><Input /></Form.Item>
           <Form.Item name="role" label="岗位 / 职位"><Input /></Form.Item>

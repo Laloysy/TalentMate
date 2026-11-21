@@ -7,7 +7,7 @@ import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import MobileHeader from '../../components/MobileHeader';
 import { useAppData } from '../../hooks/useAppData';
-import { heatmapLabel, heatmapStyle } from '../HomePage/heatmap';
+import { heatmapLabel, heatmapStyle, CARE_LEVEL_OPTIONS, careLevelLabel, careLevelStyle } from '../HomePage/heatmap';
 import { useOverlayBackHandler } from '../../native/overlays';
 import api from '../../services/api';
 
@@ -74,7 +74,7 @@ function MobileDirectoryPage() {
 
   function openAdd() {
     form.resetFields();
-    form.setFieldsValue({ contactType: 'employee', avatarColor: '#1677FF' });
+    form.setFieldsValue({ contactType: 'employee', avatarColor: '#1677FF', careLevel: 'normal' });
     setEditorOpen(true);
   }
 
@@ -222,6 +222,11 @@ function MobileDirectoryPage() {
                             候选人
                           </span>
                         )}
+                        {c.care_level === 'high' && (
+                          <span className={`px-1.5 py-0.5 rounded-full border text-[10px] shrink-0 ${careLevelStyle('high')}`}>
+                            {careLevelLabel('high')}
+                          </span>
+                        )}
                       </span>
                       <span className="block text-xs text-slate-400 truncate mt-0.5">
                         {[c.department, c.role].filter(Boolean).join(' · ') || c.email || '未填写更多信息'}
@@ -289,6 +294,14 @@ function MobileDirectoryPage() {
             </Form.Item>
             <Form.Item name="contactType" label="类型">
               <Select options={CONTACT_TYPES} size="large" />
+            </Form.Item>
+            {/* 人工指定关注等级：重点联系人的提醒阈值更低，会更早进入「需关注」 */}
+            <Form.Item
+              name="careLevel"
+              label="关注等级"
+              extra="重点联系人阈值更低：同样天数会比普通员工更早进入需关注"
+            >
+              <Select options={CARE_LEVEL_OPTIONS} size="large" />
             </Form.Item>
             <Form.Item name="department" label="部门">
               <Input size="large" />

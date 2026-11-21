@@ -29,6 +29,40 @@ export const HEATMAP_PRIORITY = {
   healthy: 4,
 };
 
+/**
+ * 人工关注等级。
+ *
+ * 与后端 insights.js 的 CARE_WEIGHT 对应：重点联系人的提醒阈值更低，
+ * 因此更早变成「需关注 / 高优先级」；这里负责展示与同状态下的排序。
+ */
+export const CARE_LEVEL_LABEL = {
+  high: '重点关注',
+  normal: '',
+  low: '低优先',
+};
+
+export const CARE_LEVEL_STYLE = {
+  high: 'bg-orange-50 text-orange-600 border-orange-100',
+  normal: 'bg-slate-50 text-slate-500 border-slate-100',
+  low: 'bg-slate-50 text-slate-400 border-slate-100',
+};
+
+export const CARE_LEVEL_OPTIONS = [
+  { value: 'high', label: '重点关注' },
+  { value: 'normal', label: '普通' },
+  { value: 'low', label: '低优先' },
+];
+
+const CARE_SORT = { high: 0, normal: 1, low: 2 };
+
+export function careLevelLabel(level) {
+  return CARE_LEVEL_LABEL[level] || '';
+}
+
+export function careLevelStyle(level) {
+  return CARE_LEVEL_STYLE[level] || CARE_LEVEL_STYLE.normal;
+}
+
 export function heatmapStyle(status) {
   return HEATMAP_STATUS_STYLE[status] || HEATMAP_STATUS_STYLE.new;
 }
@@ -37,11 +71,14 @@ export function heatmapLabel(status) {
   return HEATMAP_STATUS_LABEL[status] || '未知';
 }
 
-/** 按紧急度 + 未沟通天数排序，返回新数组 */
+/** 按紧急度 + 关注等级 + 未沟通天数排序，返回新数组 */
 export function sortHeatmap(items = []) {
   return [...items].sort((a, b) => {
     const p = (HEATMAP_PRIORITY[a.status] ?? 9) - (HEATMAP_PRIORITY[b.status] ?? 9);
     if (p !== 0) return p;
+    // 同一状态下，人工标记为「重点」的排前面
+    const c = (CARE_SORT[a.care_level] ?? 1) - (CARE_SORT[b.care_level] ?? 1);
+    if (c !== 0) return c;
     return (b.days_since_interaction ?? -1) - (a.days_since_interaction ?? -1);
   });
 }

@@ -5,6 +5,28 @@ const authMiddleware = require('../middleware/auth');
 const router = express.Router();
 router.use(authMiddleware);
 
+/**
+ * 关注等级对阈值的影响。
+ *
+ * 阈值原本只按「员工 30/45 天、候选人 7/14 天」计算，人手不能干预。
+ * 现在人工指定的 care_level 作为缩放因子：重点联系人更早进入提醒，
+ * 低优先更晚提醒 —— 同样 20 天没联系，重点员工已经是「需关注」，
+ * 普通员工还算正常。
+ */
+const CARE_WEIGHT = { high: 0.6, normal: 1, low: 1.5 };
+const CARE_LABEL = { high: '重点联系人', normal: '', low: '低优先' };
+
+/** 计算某个联系人的提醒阈值 */
+function thresholdsFor(contact) {
+  const isCandidate = contact.contact_type === 'candidate';
+  const weight = CARE_WEIGHT[contact.care_level] ?? 1;
+  const baseWarn = isCandidate ? 7 : 30;
+  const baseDanger = isCandidate ? 14 : 45;
+  const warnAt = Math.max(1, Math.round(baseWarn * weight));
+  const dangerAt = Math.max(warnAt + 1, Math.round(baseDanger * weight));
+  return { isCandidate, warnAt, dangerAt, weight };
+}
+
 router.get('/relationship-heatmap', async (req, res) => {
   try {
     const [contacts] = await pool.query(
@@ -29,9 +51,7 @@ router.get('/relationship-heatmap', async (req, res) => {
       const last = lastRaw ? new Date(String(lastRaw).replace(' ', 'T')) : null;
       const next = contact.next_event_at ? new Date(String(contact.next_event_at).replace(' ', 'T')) : null;
       const days = last ? Math.floor((now - last) / 86400000) : null;
-      const isCandidate = contact.contact_type === 'candidate';
-      const warnAt = isCandidate ? 7 : 30;
-      const dangerAt = isCandidate ? 14 : 45;
+      const { isCandidate, warnAt, dangerAt } = thresholdsFor(contact);
       let status = 'healthy';
       if (next) status = 'scheduled';
       else if (days === null) status = 'new';
@@ -44,6 +64,9 @@ router.get('/relationship-heatmap', async (req, res) => {
         next_event_at: contact.next_event_at,
         days_since_interaction: days,
         status,
+        // 把实际生效的阈值一并返回，便于前端解释「为什么是需关注」
+        warn_at: warnAt,
+        danger_at: dangerAt,
         reason: buildReason(contact, status, days, isCandidate, next),
       };
     });
@@ -56,11 +79,16 @@ router.get('/relationship-heatmap', async (req, res) => {
 });
 
 function buildReason(contact, status, days, isCandidate, next) {
-  if (status === 'scheduled') return `已安排 ${formatShort(next)} 的互动`;
-  if (status === 'new') return '尚未记录互动';
-  if (status === 'healthy') return `最近 ${days} 天内有互动`;
-  if (status === 'warning') return isCandidate ? `候选人 ${days} 天未跟进` : `${days} 天未 1对1`;
-  return isCandidate ? `候选人 ${days} 天未跟进，建议立即处理` : `${days} 天未关怀，建议安排沟通`;
+  const tag = CARE_LABEL[contact.care_level] || '';
+  const withTag = (text) => (tag ? `${tag} · ${text}` : text);
+
+  if (status === 'scheduled') return withTag(`已安排 ${formatShort(next)} 的互动`);
+  if (status === 'new') return tag ? `${tag} · 尚未记录互动` : '尚未记录互动';
+  if (status === 'healthy') return withTag(`最近 ${days} 天内有互动`);
+  if (status === 'warning') {
+    return withTag(isCandidate ? `候选人 ${days} 天未跟进` : `${days} 天未 1对1`);
+  }
+  return withTag(isCandidate ? `候选人 ${days} 天未跟进，建议立即处理` : `${days} 天未关怀，建议安排沟通`);
 }
 
 function maxDateString(a, b) {

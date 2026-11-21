@@ -7,6 +7,24 @@ router.use(authMiddleware);
 
 const COLORS = ['#1677FF', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#64748B'];
 
+/**
+ * 人工关注等级。参与关怀热度加权（见 routes/insights.js）：
+ *   high   重点联系人 —— 更早进入「需关注 / 高优先级」
+ *   normal 普通
+ *   low    低优先 —— 更晚提醒
+ */
+const CARE_LEVELS = ['high', 'normal', 'low'];
+
+/** 把中文/别名统一成内部值；无法识别时原样返回，交给 validateContact 报错 */
+function normalizeCareLevel(value) {
+  const v = clean(value).toLowerCase();
+  if (!v) return 'normal';
+  if (['重点', '重点关注', '重点联系人', 'high'].includes(v)) return 'high';
+  if (['低', '低优先', '低优先级', 'low'].includes(v)) return 'low';
+  if (['普通', '一般', 'normal'].includes(v)) return 'normal';
+  return v;
+}
+
 router.get('/', async (req, res) => {
   try {
     const { keyword, type } = req.query;
@@ -125,8 +143,8 @@ router.post('/', async (req, res) => {
     }
     const [result] = await pool.query(
       `INSERT INTO contacts
-       (user_id, name, email, contact_type, department, role, birthday, onboard_date, avatar_color, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (user_id, name, email, contact_type, department, role, birthday, onboard_date, avatar_color, care_level, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         payload.user_id,
         payload.name,
@@ -137,6 +155,7 @@ router.post('/', async (req, res) => {
         payload.birthday,
         payload.onboard_date,
         payload.avatar_color,
+        payload.care_level,
         payload.notes,
       ]
     );
@@ -173,8 +192,8 @@ router.post('/import-csv', async (req, res) => {
       }
       await pool.query(
         `INSERT INTO contacts
-         (user_id, name, email, contact_type, department, role, birthday, onboard_date, avatar_color, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (user_id, name, email, contact_type, department, role, birthday, onboard_date, avatar_color, care_level, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           payload.user_id,
           payload.name,
@@ -185,6 +204,7 @@ router.post('/import-csv', async (req, res) => {
           payload.birthday,
           payload.onboard_date,
           payload.avatar_color,
+          payload.care_level,
           payload.notes,
         ]
       );
@@ -224,7 +244,7 @@ router.put('/:id', async (req, res) => {
     const [result] = await pool.query(
       `UPDATE contacts
        SET name = ?, email = ?, contact_type = ?, department = ?, role = ?,
-           birthday = ?, onboard_date = ?, avatar_color = ?, notes = ?
+           birthday = ?, onboard_date = ?, avatar_color = ?, care_level = ?, notes = ?
        WHERE id = ? AND user_id = ?`,
       [
         payload.name,
@@ -235,6 +255,7 @@ router.put('/:id', async (req, res) => {
         payload.birthday,
         payload.onboard_date,
         payload.avatar_color,
+        payload.care_level,
         payload.notes,
         req.params.id,
         req.user.id,
@@ -279,6 +300,7 @@ function normalizeContact(body, userId) {
     birthday: clean(body.birthday || body['生日']) || null,
     onboard_date: clean(body.onboardDate || body.onboard_date || body['入职时间']) || null,
     avatar_color: clean(body.avatarColor || body.avatar_color) || COLORS[Math.floor(Math.random() * COLORS.length)],
+    care_level: normalizeCareLevel(body.careLevel || body.care_level || body['关注等级']),
     notes: clean(body.notes || body['备注']) || null,
   };
 }
@@ -298,6 +320,9 @@ function validateContact(payload) {
   }
   if (!['employee', 'candidate'].includes(payload.contact_type)) {
     return { valid: false, message: '类型必须是员工或候选人' };
+  }
+  if (!CARE_LEVELS.includes(payload.care_level)) {
+    return { valid: false, message: '关注等级必须是「重点 / 普通 / 低」之一' };
   }
   return { valid: true };
 }
